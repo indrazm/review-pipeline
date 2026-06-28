@@ -1,10 +1,11 @@
 import type { DiffScopeItem } from "../../diff-scope/diffScopes.js";
 import type { GitDiffSnapshot } from "../../git-diff/getGitDiffStats.js";
 import type { MenuItem } from "../../main-menu/menuItems.js";
+import type { LintRunPhase } from "../lintAgent.js";
 import { toDiffContextLines, toMarkdownBlockLines } from "./sharedPrompt.js";
 
 export const LINT_AGENT_INSTRUCTIONS = [
-  "You are a lint and verification agent running inside the review-this CLI after review and before optional fixing.",
+  "You are a lint and verification agent running inside the review-this CLI.",
   "Your job is to run available project verification checks and report their status.",
   "Do not modify files in this lint step.",
   "Inspect package scripts and project conventions before choosing commands.",
@@ -24,9 +25,17 @@ export function toLintPrompt(
   mode: MenuItem,
   diffScope: DiffScopeItem,
   diff: GitDiffSnapshot,
+  phase: LintRunPhase = "pre-fix",
 ): string {
+  const phaseDescription =
+    phase === "post-fix"
+      ? "Post-fix verification: validate the current working tree after the fix agent changed files."
+      : "Initial verification: validate the current working tree before optional fixing.";
+
   return [
     ...toDiffContextLines(mode, diffScope, diff),
+    "",
+    phaseDescription,
     "",
     "Verification workflow:",
     "1. Inspect package scripts and lockfile/package manager.",
@@ -35,7 +44,7 @@ export function toLintPrompt(
     "4. Use `VERDICT: pass` only if every available check passed.",
     "",
     ...toMarkdownBlockLines(
-      "Original git diff:",
+      phase === "post-fix" ? "Current git diff after fix:" : "Original git diff:",
       "diff",
       diff.patch,
       "(empty diff)",

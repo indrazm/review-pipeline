@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import "dotenv/config";
 import { render } from "ink";
 import { App } from "./app/App.js";
 import { flushLogs } from "./lib/logger.js";
