@@ -1,12 +1,15 @@
 import { useApp, useInput } from "ink";
 
-export function useExitKeys(): void {
+type UseExitKeysOptions = {
+  readonly enableQ?: boolean;
+};
+
+export function useExitKeys({ enableQ = true }: UseExitKeysOptions = {}): void {
   const { exit } = useApp();
 
   useInput((input, key) => {
-    if (input === "q" || key.escape || (key.ctrl && input === "c")) {
+    if ((enableQ && input === "q") || key.escape || (key.ctrl && input === "c")) {
       exit();
     }
   });
 }
-

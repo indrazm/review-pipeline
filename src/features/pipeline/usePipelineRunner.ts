@@ -44,6 +44,16 @@ export type PipelineRunState =
   | {
       readonly diff: GitDiffSnapshot;
       readonly diffScope: DiffScopeItem;
+      readonly fix: AgentFixResult;
+      readonly fixSkipped: false;
+      readonly lint: AgentLintResult;
+      readonly mode: MenuItem;
+      readonly review: AgentReviewResult;
+      readonly status: "verifying-after-fix";
+    }
+  | {
+      readonly diff: GitDiffSnapshot;
+      readonly diffScope: DiffScopeItem;
       readonly fix?: AgentFixResult;
       readonly fixSkipped: boolean;
       readonly lint: AgentLintResult;
@@ -59,6 +69,8 @@ export type PipelineRunState =
       readonly lint?: AgentLintResult;
       readonly lintSkipped: boolean;
       readonly mode: MenuItem;
+      readonly postFixLint?: AgentLintResult;
+      readonly postFixLintSkipped: boolean;
       readonly pr?: AgentPrResult;
       readonly prSkipped: boolean;
       readonly review?: AgentReviewResult;
@@ -115,6 +127,7 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             fixSkipped: mode.id !== "review",
             lintSkipped: mode.id === "full-pipeline",
             mode,
+            postFixLintSkipped: mode.id === "full-pipeline",
             prSkipped: mode.id === "full-pipeline",
             reviewSkipped: true,
             status: "completed",
@@ -169,6 +182,31 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             `[review-this] ${mode.label} (${diffScope.label}): lint agent completed (${lint.content.length} chars)`,
           );
         },
+        onPostFixLintStarted: (diff, review, fix, lint) => {
+          if (runIdRef.current !== runId) {
+            return;
+          }
+
+          setState({
+            diff,
+            diffScope,
+            fix,
+            fixSkipped: false,
+            lint,
+            mode,
+            review,
+            status: "verifying-after-fix",
+          });
+        },
+        onPostFixLintCompleted: (lint) => {
+          if (runIdRef.current !== runId) {
+            return;
+          }
+
+          logInfo(
+            `[review-this] ${mode.label} (${diffScope.label}): post-fix verification completed (${lint.content.length} chars)`,
+          );
+        },
         onPrStarted: (diff, review, fix, lint) => {
           if (runIdRef.current !== runId) {
             return;
@@ -218,6 +256,8 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             lint: result.agentLint,
             lintSkipped: result.lintSkipped,
             mode,
+            postFixLint: result.agentPostFixLint,
+            postFixLintSkipped: result.postFixLintSkipped,
             pr: result.agentPr,
             prSkipped: result.prSkipped,
             review: result.agentReview,

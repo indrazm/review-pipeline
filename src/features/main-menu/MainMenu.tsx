@@ -1,14 +1,19 @@
 import { Box, Text } from "ink";
 import { ReviewThisLogo } from "../../components/ReviewThisLogo.js";
-import { MENU_ITEMS, type MenuItem } from "./menuItems.js";
+import { MENU_ITEMS, type MainMenuItem, isRunModeItem } from "./menuItems.js";
 import { useMenuNavigation } from "./useMenuNavigation.js";
+import type { ProviderConfigStatus } from "../provider/providerConfig.js";
 
 type MainMenuProps = {
-  readonly onChoose: (item: MenuItem) => void;
+  readonly onChoose: (item: MainMenuItem) => void;
+  readonly providerConfigStatus: ProviderConfigStatus;
 };
 
-export function MainMenu({ onChoose }: MainMenuProps) {
+export function MainMenu({ onChoose, providerConfigStatus }: MainMenuProps) {
+  const hasProviderConfig = providerConfigStatus.status === "valid";
   const { selectedIndex } = useMenuNavigation({
+    isItemDisabled: (index) =>
+      isRunModeItem(MENU_ITEMS[index]) && !hasProviderConfig,
     itemCount: MENU_ITEMS.length,
     onChoose: (index) => {
       onChoose(MENU_ITEMS[index]);
@@ -26,15 +31,21 @@ export function MainMenu({ onChoose }: MainMenuProps) {
         <Text dimColor wrap="truncate">
           reads that diff and runs the matching local agent pipeline.
         </Text>
+        <ProviderStatusLine providerConfigStatus={providerConfigStatus} />
       </Box>
 
       <Box flexDirection="column" gap={1}>
         {MENU_ITEMS.map((item, index) => {
           const isSelected = selectedIndex === index;
+          const isDisabled = isRunModeItem(item) && !hasProviderConfig;
 
           return (
             <Box key={item.id} flexDirection="column">
-              <Text color={isSelected ? "cyan" : undefined} bold={isSelected}>
+              <Text
+                color={isSelected ? "cyan" : undefined}
+                bold={isSelected}
+                dimColor={isDisabled}
+              >
                 {isSelected ? "> " : "  "}
                 {index + 1}. {item.label}
               </Text>
@@ -49,5 +60,36 @@ export function MainMenu({ onChoose }: MainMenuProps) {
 
       <Box height={1} />
     </Box>
+  );
+}
+
+type ProviderStatusLineProps = {
+  readonly providerConfigStatus: ProviderConfigStatus;
+};
+
+function ProviderStatusLine({
+  providerConfigStatus,
+}: ProviderStatusLineProps) {
+  if (providerConfigStatus.status === "valid") {
+    return (
+      <Text dimColor wrap="truncate">
+        Provider connected: {providerConfigStatus.config.type} /{" "}
+        {providerConfigStatus.config.model}
+      </Text>
+    );
+  }
+
+  if (providerConfigStatus.status === "invalid") {
+    return (
+      <Text color="yellow" wrap="truncate">
+        Provider config invalid. Connect provider to replace it.
+      </Text>
+    );
+  }
+
+  return (
+    <Text color="yellow" wrap="truncate">
+      Connect provider first to enable review modes.
+    </Text>
   );
 }

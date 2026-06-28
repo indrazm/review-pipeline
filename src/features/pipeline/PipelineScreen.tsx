@@ -70,6 +70,7 @@ function PipelineSteps({
           state.status === "reviewing" ||
           state.status === "linting" ||
           state.status === "fixing" ||
+          state.status === "verifying-after-fix" ||
           state.status === "preparing-pr" ||
           state.status === "completed" ||
           state.status === "failed"
@@ -81,6 +82,7 @@ function PipelineSteps({
         isDone={
           state.status === "fixing" ||
           state.status === "linting" ||
+          state.status === "verifying-after-fix" ||
           state.status === "preparing-pr" ||
           (state.status === "completed" && !state.reviewSkipped)
         }
@@ -92,6 +94,7 @@ function PipelineSteps({
           isActive={state.status === "linting"}
           isDone={
             state.status === "fixing" ||
+            state.status === "verifying-after-fix" ||
             state.status === "preparing-pr" ||
             (state.status === "completed" && !state.lintSkipped)
           }
@@ -103,6 +106,7 @@ function PipelineSteps({
         <StepLine
           isActive={state.status === "fixing"}
           isDone={
+            state.status === "verifying-after-fix" ||
             state.status === "preparing-pr" ||
             (state.status === "completed" && !state.fixSkipped)
           }
@@ -111,6 +115,17 @@ function PipelineSteps({
             (state.status === "completed" && state.fixSkipped)
           }
           label="Fixing ..."
+        />
+      )}
+      {showsFullPipelineSteps && (
+        <StepLine
+          isActive={state.status === "verifying-after-fix"}
+          isDone={
+            state.status === "preparing-pr" ||
+            (state.status === "completed" && !state.postFixLintSkipped)
+          }
+          isSkipped={state.status === "completed" && state.postFixLintSkipped}
+          label="Verifying after fix ..."
         />
       )}
       {showsFullPipelineSteps && (

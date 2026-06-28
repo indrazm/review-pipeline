@@ -1,4 +1,4 @@
-export const MENU_ITEMS = [
+export const RUN_MODE_ITEMS = [
   {
     id: "review",
     label: "Review",
@@ -16,4 +16,17 @@ export const MENU_ITEMS = [
   },
 ] as const;
 
-export type MenuItem = (typeof MENU_ITEMS)[number];
+export const CONNECT_PROVIDER_ITEM = {
+  id: "connect-provider",
+  label: "Connect provider",
+  description: "Save and verify an OpenAI-compatible or Anthropic-compatible endpoint.",
+} as const;
+
+export const MENU_ITEMS = [...RUN_MODE_ITEMS, CONNECT_PROVIDER_ITEM] as const;
+
+export type MenuItem = (typeof RUN_MODE_ITEMS)[number];
+export type MainMenuItem = (typeof MENU_ITEMS)[number];
+
+export function isRunModeItem(item: MainMenuItem): item is MenuItem {
+  return item.id !== CONNECT_PROVIDER_ITEM.id;
+}

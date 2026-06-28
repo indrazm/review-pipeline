@@ -8,6 +8,8 @@ import { PtySessionManager } from "./ptySessionManager.js";
 import { createAgentTools } from "./tools.js";
 import { generateVerdicts, type LintVerdicts } from "./verdicts.js";
 
+export type LintRunPhase = "pre-fix" | "post-fix";
+
 export type AgentLintResult = {
   readonly content: string;
   readonly verdicts: LintVerdicts;
@@ -18,6 +20,7 @@ type RunLintAgentOptions = {
   readonly diff: GitDiffSnapshot;
   readonly diffScope: DiffScopeItem;
   readonly mode: MenuItem;
+  readonly phase?: LintRunPhase;
 };
 
 export async function runLintAgent({
@@ -25,6 +28,7 @@ export async function runLintAgent({
   diff,
   diffScope,
   mode,
+  phase = "pre-fix",
 }: RunLintAgentOptions): Promise<AgentLintResult> {
   const ptySessions = new PtySessionManager(cwd);
 
@@ -37,7 +41,7 @@ export async function runLintAgent({
       .build();
 
     const response = await agent
-      .prompt(toLintPrompt(mode, diffScope, diff))
+      .prompt(toLintPrompt(mode, diffScope, diff, phase))
       .send();
     const verdicts = await generateVerdicts("lint", response.output);
 

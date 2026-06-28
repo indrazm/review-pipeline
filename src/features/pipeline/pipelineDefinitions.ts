@@ -1,6 +1,12 @@
 import type { MenuItem } from "../main-menu/menuItems.js";
 
-export type PipelineStepId = "git-diff" | "review" | "fix" | "lint" | "pr";
+export type PipelineStepId =
+  | "git-diff"
+  | "review"
+  | "fix"
+  | "lint"
+  | "post-fix-lint"
+  | "pr";
 
 export type PipelineDefinition = {
   readonly mode: MenuItem["id"];
@@ -18,6 +24,6 @@ export const PIPELINE_DEFINITIONS: Record<MenuItem["id"], PipelineDefinition> = 
   },
   "full-pipeline": {
     mode: "full-pipeline",
-    steps: ["git-diff", "review", "lint", "fix", "pr"],
+    steps: ["git-diff", "review", "lint", "fix", "post-fix-lint", "pr"],
   },
 };
