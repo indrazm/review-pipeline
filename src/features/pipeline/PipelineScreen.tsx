@@ -13,6 +13,8 @@ type PipelineScreenProps = {
 
 export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
   const { run, state } = usePipelineRunner(cwd);
+  const showsFixStep = mode.id !== "review";
+  const showsFullPipelineSteps = mode.id === "full-pipeline";
 
   useEffect(() => {
     run(mode, diffScope);
@@ -32,18 +34,29 @@ export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
         </Text>
       </Box>
 
-      <PipelineSteps state={state} />
+      <PipelineSteps
+        showsFixStep={showsFixStep}
+        showsFullPipelineSteps={showsFullPipelineSteps}
+        state={state}
+      />
       <PipelineNoChanges state={state} />
       <PipelineCompletion state={state} />
+      <PipelineReviewOutput state={state} />
     </Box>
   );
 }
 
 type PipelineStepsProps = {
+  readonly showsFixStep: boolean;
+  readonly showsFullPipelineSteps: boolean;
   readonly state: ReturnType<typeof usePipelineRunner>["state"];
 };
 
-function PipelineSteps({ state }: PipelineStepsProps) {
+function PipelineSteps({
+  showsFixStep,
+  showsFullPipelineSteps,
+  state,
+}: PipelineStepsProps) {
   return (
     <Box flexDirection="column" flexShrink={0}>
       <StepLine
@@ -57,10 +70,50 @@ function PipelineSteps({ state }: PipelineStepsProps) {
       />
       <StepLine
         isActive={state.status === "reviewing"}
-        isDone={state.status === "completed" && !state.reviewSkipped}
+        isDone={
+          state.status === "fixing" ||
+          state.status === "linting" ||
+          state.status === "preparing-pr" ||
+          (state.status === "completed" && !state.reviewSkipped)
+        }
         isSkipped={state.status === "completed" && state.reviewSkipped}
         label="Reviewing ..."
       />
+      {showsFixStep && (
+        <StepLine
+          isActive={state.status === "fixing"}
+          isDone={
+            state.status === "linting" ||
+            state.status === "preparing-pr" ||
+            (state.status === "completed" && !state.fixSkipped)
+          }
+          isSkipped={
+            (state.status === "linting" && state.fixSkipped) ||
+            (state.status === "preparing-pr" && state.fixSkipped) ||
+            (state.status === "completed" && state.fixSkipped)
+          }
+          label="Fixing ..."
+        />
+      )}
+      {showsFullPipelineSteps && (
+        <>
+          <StepLine
+            isActive={state.status === "linting"}
+            isDone={
+              state.status === "preparing-pr" ||
+              (state.status === "completed" && !state.lintSkipped)
+            }
+            isSkipped={state.status === "completed" && state.lintSkipped}
+            label="Linting ..."
+          />
+          <StepLine
+            isActive={state.status === "preparing-pr"}
+            isDone={state.status === "completed" && !state.prSkipped}
+            isSkipped={state.status === "completed" && state.prSkipped}
+            label="Preparing PR ..."
+          />
+        </>
+      )}
       {state.status === "failed" && (
         <Text color="yellow" wrap="truncate">
           Failed: {state.error}
@@ -126,6 +179,38 @@ function PipelineCompletion({ state }: PipelineCompletionProps) {
     <Text color="green" wrap="truncate">
       Completed.
     </Text>
+  );
+}
+
+type PipelineReviewOutputProps = {
+  readonly state: ReturnType<typeof usePipelineRunner>["state"];
+};
+
+function PipelineReviewOutput({ state }: PipelineReviewOutputProps) {
+  if (
+    state.status !== "completed" ||
+    state.mode.id !== "review" ||
+    state.reviewSkipped ||
+    state.review === undefined
+  ) {
+    return null;
+  }
+
+  const output = state.review.output.trim();
+
+  return (
+    <Box flexDirection="column" flexShrink={1} overflow="hidden" width="100%">
+      <Text bold>Review output</Text>
+      {output.length === 0 ? (
+        <Text dimColor>No review output.</Text>
+      ) : (
+        output.split(/\r?\n/).map((line, index) => (
+          <Text key={`${index}-${line}`} wrap="wrap">
+            {line.length === 0 ? " " : line}
+          </Text>
+        ))
+      )}
+    </Box>
   );
 }
 
