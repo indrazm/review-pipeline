@@ -1,5 +1,6 @@
 import { AgentBuilder } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
+import type { DiffScopeItem } from "../diff-scope/diffScopes.js";
 import type { GitDiffSnapshot } from "../git-diff/getGitDiffStats.js";
 import type { MenuItem } from "../main-menu/menuItems.js";
 import { PtySessionManager } from "./ptySessionManager.js";
@@ -26,12 +27,14 @@ export type AgentReviewResult = {
 type RunReviewAgentOptions = {
   readonly cwd: string;
   readonly diff: GitDiffSnapshot;
+  readonly diffScope: DiffScopeItem;
   readonly mode: MenuItem;
 };
 
 export async function runReviewAgent({
   cwd,
   diff,
+  diffScope,
   mode,
 }: RunReviewAgentOptions): Promise<AgentReviewResult> {
   const ptySessions = new PtySessionManager(cwd);
@@ -44,7 +47,7 @@ export async function runReviewAgent({
       .defaultMaxTurns(8)
       .build();
 
-    const response = await agent.prompt(toReviewPrompt(mode, diff)).send();
+    const response = await agent.prompt(toReviewPrompt(mode, diffScope, diff)).send();
 
     return {
       output: response.output,
@@ -67,9 +70,14 @@ function createCompletionModel() {
   return client.completionModel(model === undefined || model === "" ? DEFAULT_MODEL : model);
 }
 
-function toReviewPrompt(mode: MenuItem, diff: GitDiffSnapshot): string {
+function toReviewPrompt(
+  mode: MenuItem,
+  diffScope: DiffScopeItem,
+  diff: GitDiffSnapshot,
+): string {
   return [
     `Pipeline mode: ${mode.label}`,
+    `Diff scope: ${diffScope.label}`,
     `Project path: ${diff.stats.cwd}`,
     `Changed files: ${diff.stats.changedFiles}`,
     `Added lines: ${diff.stats.addedLines}`,

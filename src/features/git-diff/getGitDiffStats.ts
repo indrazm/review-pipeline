@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import type { DiffScopeItem } from "../diff-scope/diffScopes.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -7,6 +8,7 @@ export type GitDiffStats = {
   readonly addedLines: number;
   readonly binaryFiles: number;
   readonly changedFiles: number;
+  readonly commitCount?: number;
   readonly cwd: string;
   readonly removedLines: number;
 };
@@ -17,37 +19,66 @@ export type GitDiffSnapshot = {
 };
 
 type GitDiffTarget = {
+  readonly baseRef?: string;
   readonly hasHead: boolean;
+  readonly scope: DiffScopeItem["id"];
 };
 
-export async function getGitDiffStats(cwd = process.cwd()): Promise<GitDiffStats> {
-  const target = await getGitDiffTarget(cwd);
-  const [trackedNumstat, untrackedNumstat] = await Promise.all([
+export async function getGitDiffStats(
+  cwd: string,
+  scope: DiffScopeItem,
+): Promise<GitDiffStats> {
+  const target = await getGitDiffTarget(cwd, scope);
+  const [trackedNumstat, untrackedNumstat, commitCount] = await Promise.all([
     runGit(cwd, buildGitDiffArgs(target, "--numstat")),
-    getUntrackedNumstat(cwd),
+    getExtraNumstat(cwd, target),
+    getCommitCount(cwd, target),
   ]);
 
-  return toGitDiffStats(cwd, joinGitOutputs([trackedNumstat.stdout, untrackedNumstat]));
+  return toGitDiffStats(
+    cwd,
+    joinGitOutputs([trackedNumstat.stdout, untrackedNumstat]),
+    commitCount,
+  );
 }
 
-export async function getGitDiff(cwd = process.cwd()): Promise<GitDiffSnapshot> {
-  const target = await getGitDiffTarget(cwd);
-  const [trackedNumstat, trackedPatch, untrackedNumstat, untrackedPatch] = await Promise.all([
+export async function getGitDiff(
+  cwd: string,
+  scope: DiffScopeItem,
+): Promise<GitDiffSnapshot> {
+  const target = await getGitDiffTarget(cwd, scope);
+  const [
+    trackedNumstat,
+    trackedPatch,
+    untrackedNumstat,
+    untrackedPatch,
+    commitCount,
+  ] = await Promise.all([
     runGit(cwd, buildGitDiffArgs(target, "--numstat")),
     runGit(cwd, buildGitDiffArgs(target)),
-    getUntrackedNumstat(cwd),
-    getUntrackedPatch(cwd),
+    getExtraNumstat(cwd, target),
+    getExtraPatch(cwd, target),
+    getCommitCount(cwd, target),
   ]);
 
   return {
     patch: joinGitOutputs([trackedPatch.stdout, untrackedPatch]),
-    stats: toGitDiffStats(cwd, joinGitOutputs([trackedNumstat.stdout, untrackedNumstat])),
+    stats: toGitDiffStats(
+      cwd,
+      joinGitOutputs([trackedNumstat.stdout, untrackedNumstat]),
+      commitCount,
+    ),
   };
 }
 
-function toGitDiffStats(cwd: string, numstat: string): GitDiffStats {
+function toGitDiffStats(
+  cwd: string,
+  numstat: string,
+  commitCount?: number,
+): GitDiffStats {
   return {
     cwd,
+    ...(commitCount === undefined ? {} : { commitCount }),
     ...parseGitNumstat(numstat),
   };
 }
@@ -92,11 +123,29 @@ async function assertGitWorkTree(cwd: string): Promise<void> {
   }
 }
 
-async function getGitDiffTarget(cwd: string): Promise<GitDiffTarget> {
+async function getGitDiffTarget(
+  cwd: string,
+  scope: DiffScopeItem,
+): Promise<GitDiffTarget> {
   await assertGitWorkTree(cwd);
 
+  const hasHead = await hasGitHead(cwd);
+
+  if (scope.id === "branch-against-main") {
+    if (!hasHead) {
+      throw new Error("Current branch against main requires a git HEAD commit");
+    }
+
+    return {
+      baseRef: await resolveMainRef(cwd),
+      hasHead,
+      scope: scope.id,
+    };
+  }
+
   return {
-    hasHead: await hasGitHead(cwd),
+    hasHead,
+    scope: scope.id,
   };
 }
 
@@ -107,6 +156,68 @@ async function hasGitHead(cwd: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function resolveMainRef(cwd: string): Promise<string> {
+  for (const ref of ["main", "origin/main"]) {
+    if (await hasGitRef(cwd, ref)) {
+      return ref;
+    }
+  }
+
+  throw new Error("Could not find main or origin/main for branch comparison");
+}
+
+async function hasGitRef(cwd: string, ref: string): Promise<boolean> {
+  try {
+    await runGit(cwd, ["rev-parse", "--verify", "--quiet", ref]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getExtraNumstat(
+  cwd: string,
+  target: GitDiffTarget,
+): Promise<string> {
+  if (target.scope !== "current-changes") {
+    return "";
+  }
+
+  return getUntrackedNumstat(cwd);
+}
+
+async function getExtraPatch(
+  cwd: string,
+  target: GitDiffTarget,
+): Promise<string> {
+  if (target.scope !== "current-changes") {
+    return "";
+  }
+
+  return getUntrackedPatch(cwd);
+}
+
+async function getCommitCount(
+  cwd: string,
+  target: GitDiffTarget,
+): Promise<number | undefined> {
+  if (target.scope !== "branch-against-main") {
+    return undefined;
+  }
+
+  if (target.baseRef === undefined) {
+    throw new Error("Branch diff target is missing a base ref");
+  }
+
+  const { stdout } = await runGit(cwd, [
+    "rev-list",
+    "--count",
+    `${target.baseRef}..HEAD`,
+  ]);
+
+  return Number.parseInt(stdout.trim(), 10);
 }
 
 async function getUntrackedNumstat(cwd: string): Promise<string> {
@@ -146,6 +257,26 @@ function buildGitDiffArgs(
   target: GitDiffTarget,
   format?: "--numstat",
 ): readonly string[] {
+  if (target.scope === "branch-against-main") {
+    if (target.baseRef === undefined) {
+      throw new Error("Branch diff target is missing a base ref");
+    }
+
+    return format === undefined
+      ? ["diff", `${target.baseRef}...HEAD`, "--", "."]
+      : ["diff", format, `${target.baseRef}...HEAD`, "--", "."];
+  }
+
+  if (target.scope === "staged-changes") {
+    return target.hasHead
+      ? format === undefined
+        ? ["diff", "--cached", "HEAD", "--", "."]
+        : ["diff", "--cached", format, "HEAD", "--", "."]
+      : format === undefined
+        ? ["diff", "--cached", "--", "."]
+        : ["diff", "--cached", format, "--", "."];
+  }
+
   if (target.hasHead) {
     return format === undefined
       ? ["diff", "HEAD", "--", "."]

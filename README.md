@@ -13,17 +13,23 @@ When you run `rp`, it opens a full-screen terminal app with three modes:
 - Review and Fix
 - Full pipeline
 
-Selecting a mode opens a pipeline screen. The current pipeline implementation:
+After choosing a mode, choose the diff scope:
 
-1. Loads the git diff, including untracked files, for the directory where `rp`
-   was started.
+- Current changes
+- Current branch against main
+- Staged changes
+
+Selecting a scope opens a pipeline screen. The current pipeline implementation:
+
+1. Loads the selected git diff scope for the directory where `rp` was started.
 2. Shows a `Loading Diff` state.
-3. Passes the git diff to the review agent.
-4. Shows a `Reviewing ...` state while the agent runs.
-5. Gives the agent two PTY tools: `execCommand` and `writeStdin`.
-6. Marks the run as `Completed.`
+3. Skips review when the selected scope has no changes.
+4. Passes non-empty git diffs to the review agent.
+5. Shows a `Reviewing ...` state while the agent runs.
+6. Gives the agent two PTY tools: `execCommand` and `writeStdin`.
+7. Marks the run as `Completed.`
 
-The diff line-count summary and agent completion summary are logged after the
+The diff line-count summary and review result summary are logged after the
 terminal UI exits.
 
 ## Environment
@@ -109,6 +115,7 @@ src/
   app/                    App shell and global key handling
   components/             Shared Ink UI components
   features/agent/         Anvia review agent and node-pty tools
+  features/diff-scope/    Diff scope choices
   features/git-diff/      Git diff loading and stats parsing
   features/main-menu/     Main menu UI and navigation
   features/pipeline/      Pipeline runner and pipeline screen

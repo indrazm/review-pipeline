@@ -2,6 +2,8 @@ import { useState } from "react";
 import process from "node:process";
 import { useWindowSize } from "ink";
 import { FullscreenFrame } from "../components/FullscreenFrame.js";
+import { DiffScopeMenu } from "../features/diff-scope/DiffScopeMenu.js";
+import type { DiffScopeItem } from "../features/diff-scope/diffScopes.js";
 import { MainMenu } from "../features/main-menu/MainMenu.js";
 import type { MenuItem } from "../features/main-menu/menuItems.js";
 import { PipelineScreen } from "../features/pipeline/PipelineScreen.js";
@@ -12,8 +14,12 @@ export function App() {
 
   const { columns, rows } = useWindowSize();
   const [selectedMode, setSelectedMode] = useState<MenuItem | undefined>();
+  const [selectedDiffScope, setSelectedDiffScope] = useState<
+    DiffScopeItem | undefined
+  >();
 
-  const isPipelineOpen = selectedMode !== undefined;
+  const isPipelineOpen =
+    selectedMode !== undefined && selectedDiffScope !== undefined;
 
   return (
     <FullscreenFrame
@@ -28,8 +34,14 @@ export function App() {
     >
       {selectedMode === undefined ? (
         <MainMenu onChoose={setSelectedMode} />
+      ) : selectedDiffScope === undefined ? (
+        <DiffScopeMenu mode={selectedMode} onChoose={setSelectedDiffScope} />
       ) : (
-        <PipelineScreen cwd={process.cwd()} mode={selectedMode} />
+        <PipelineScreen
+          cwd={process.cwd()}
+          diffScope={selectedDiffScope}
+          mode={selectedMode}
+        />
       )}
     </FullscreenFrame>
   );
