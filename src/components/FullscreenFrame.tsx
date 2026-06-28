@@ -39,6 +39,7 @@ export function FullscreenFrame({
     >
       <Box
         flexGrow={1}
+        width="100%"
         alignItems={contentLayout === "center" ? "center" : "stretch"}
         justifyContent={contentLayout === "center" ? "center" : "flex-start"}
         overflow="hidden"

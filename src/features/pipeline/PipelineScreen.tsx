@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import { BrailleSpinner } from "../../components/BrailleSpinner.js";
 import type { MenuItem } from "../main-menu/menuItems.js";
 import { DiffPreview } from "./DiffPreview.js";
+import { ReviewOutput } from "./ReviewOutput.js";
 import { usePipelineRunner } from "./usePipelineRunner.js";
 
 type PipelineScreenProps = {
@@ -18,7 +19,7 @@ export function PipelineScreen({ cwd, mode }: PipelineScreenProps) {
   }, [mode, run]);
 
   return (
-    <Box flexDirection="column" flexGrow={1} paddingX={1} gap={1}>
+    <Box flexDirection="column" flexGrow={1} width="100%" paddingX={1} gap={1}>
       <Box flexDirection="column" flexShrink={0}>
         <Text bold wrap="truncate">
           {mode.label}
@@ -30,6 +31,7 @@ export function PipelineScreen({ cwd, mode }: PipelineScreenProps) {
 
       <PipelineSteps state={state} />
       <PipelineDiff state={state} />
+      <PipelineReview state={state} />
       <PipelineCompletion state={state} />
     </Box>
   );
@@ -93,6 +95,18 @@ function PipelineDiff({ state }: PipelineDiffProps) {
   }
 
   return <DiffPreview maxLines={9} patch={state.diff.patch} />;
+}
+
+type PipelineReviewProps = {
+  readonly state: ReturnType<typeof usePipelineRunner>["state"];
+};
+
+function PipelineReview({ state }: PipelineReviewProps) {
+  if (state.status !== "completed") {
+    return null;
+  }
+
+  return <ReviewOutput output={state.review?.output ?? ""} />;
 }
 
 type PipelineCompletionProps = {

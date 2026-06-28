@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { logInfo, logWarn } from "../../lib/logger.js";
+import type { AgentReviewResult } from "../agent/reviewAgent.js";
 import type { GitDiffSnapshot } from "../git-diff/getGitDiffStats.js";
 import type { MenuItem } from "../main-menu/menuItems.js";
 import { runPipeline } from "./runPipeline.js";
@@ -20,6 +21,7 @@ export type PipelineRunState =
   | {
       readonly diff: GitDiffSnapshot;
       readonly mode: MenuItem;
+      readonly review?: AgentReviewResult;
       readonly status: "completed";
     }
   | {
@@ -67,7 +69,18 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             throw new Error("Git diff step did not produce a result");
           }
 
-          setState({ diff: result.gitDiff, mode, status: "completed" });
+          if (result.agentReview !== undefined) {
+            logInfo(
+              `[rp] ${mode.label}: agent review completed (${result.agentReview.output.length} chars)`,
+            );
+          }
+
+          setState({
+            diff: result.gitDiff,
+            mode,
+            review: result.agentReview,
+            status: "completed",
+          });
         })
         .catch((error: unknown) => {
           if (runIdRef.current !== runId) {

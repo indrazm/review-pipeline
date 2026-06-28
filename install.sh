@@ -38,6 +38,7 @@ fi
 
 cd "$ROOT_DIR"
 pnpm install
+pnpm run postinstall
 pnpm build
 
 BIN_DIR="$(pick_bin_dir)"
@@ -50,4 +51,3 @@ if ! path_has_dir "$BIN_DIR"; then
 else
   printf 'Installed %s to %s/%s\n' "$COMMAND_NAME" "$BIN_DIR" "$COMMAND_NAME"
 fi
-

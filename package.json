@@ -10,11 +10,12 @@
   "scripts": {
     "dev": "pnpm build && node dist/cli.js",
     "build": "rm -rf dist && tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "postinstall": "node scripts/fix-node-pty-permissions.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/cli.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",
@@ -22,7 +23,13 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@anvia/core": "^0.11.0",
+    "@anvia/openai": "^0.3.14",
+    "dotenv": "^17.4.2",
     "ink": "^7.1.0",
-    "react": "^19.2.7"
+    "ink-markdown-es": "^1.4.0",
+    "node-pty": "^1.1.0",
+    "react": "^19.2.7",
+    "zod": "^4.4.3"
   }
 }

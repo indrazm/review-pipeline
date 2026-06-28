@@ -13,6 +13,7 @@ export function DiffPreview({ maxLines = 12, patch }: DiffPreviewProps) {
   return (
     <Box
       flexDirection="column"
+      width="100%"
       borderStyle="single"
       borderColor="gray"
       paddingX={1}
@@ -66,4 +67,3 @@ function DiffLine({ line }: DiffLineProps) {
     </Text>
   );
 }
-

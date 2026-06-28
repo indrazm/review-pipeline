@@ -1,0 +1,6 @@
+allowBuilds:
+  node-pty: true
+minimumReleaseAge: 0
+peerDependencyRules:
+  allowedVersions:
+    ink: "7"

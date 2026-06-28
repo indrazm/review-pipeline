@@ -22,21 +22,26 @@ type GitDiffTarget = {
 
 export async function getGitDiffStats(cwd = process.cwd()): Promise<GitDiffStats> {
   const target = await getGitDiffTarget(cwd);
-  const { stdout } = await runGit(cwd, buildGitDiffArgs(target, "--numstat"));
+  const [trackedNumstat, untrackedNumstat] = await Promise.all([
+    runGit(cwd, buildGitDiffArgs(target, "--numstat")),
+    getUntrackedNumstat(cwd),
+  ]);
 
-  return toGitDiffStats(cwd, stdout);
+  return toGitDiffStats(cwd, joinGitOutputs([trackedNumstat.stdout, untrackedNumstat]));
 }
 
 export async function getGitDiff(cwd = process.cwd()): Promise<GitDiffSnapshot> {
   const target = await getGitDiffTarget(cwd);
-  const [numstat, patch] = await Promise.all([
+  const [trackedNumstat, trackedPatch, untrackedNumstat, untrackedPatch] = await Promise.all([
     runGit(cwd, buildGitDiffArgs(target, "--numstat")),
     runGit(cwd, buildGitDiffArgs(target)),
+    getUntrackedNumstat(cwd),
+    getUntrackedPatch(cwd),
   ]);
 
   return {
-    patch: patch.stdout,
-    stats: toGitDiffStats(cwd, numstat.stdout),
+    patch: joinGitOutputs([trackedPatch.stdout, untrackedPatch]),
+    stats: toGitDiffStats(cwd, joinGitOutputs([trackedNumstat.stdout, untrackedNumstat])),
   };
 }
 
@@ -104,6 +109,39 @@ async function hasGitHead(cwd: string): Promise<boolean> {
   }
 }
 
+async function getUntrackedNumstat(cwd: string): Promise<string> {
+  return getUntrackedDiff(cwd, "--numstat");
+}
+
+async function getUntrackedPatch(cwd: string): Promise<string> {
+  return getUntrackedDiff(cwd);
+}
+
+async function getUntrackedDiff(
+  cwd: string,
+  format?: "--numstat",
+): Promise<string> {
+  const paths = await getUntrackedPaths(cwd);
+  const outputs = await Promise.all(
+    paths.map((path) => runNoIndexDiff(cwd, path, format)),
+  );
+
+  return joinGitOutputs(outputs);
+}
+
+async function getUntrackedPaths(cwd: string): Promise<string[]> {
+  const { stdout } = await runGit(cwd, [
+    "ls-files",
+    "--others",
+    "--exclude-standard",
+    "-z",
+    "--",
+    ".",
+  ]);
+
+  return stdout.split("\0").filter((path) => path.length > 0);
+}
+
 function buildGitDiffArgs(
   target: GitDiffTarget,
   format?: "--numstat",
@@ -123,4 +161,47 @@ async function runGit(cwd: string, args: readonly string[]) {
   return execFileAsync("git", ["-C", cwd, ...args], {
     maxBuffer: 10 * 1024 * 1024,
   });
+}
+
+async function runNoIndexDiff(
+  cwd: string,
+  path: string,
+  format?: "--numstat",
+): Promise<string> {
+  const args =
+    format === undefined
+      ? ["diff", "--no-index", "--", "/dev/null", path]
+      : ["diff", "--no-index", format, "--", "/dev/null", path];
+
+  try {
+    const { stdout } = await runGit(cwd, args);
+
+    return stdout;
+  } catch (error) {
+    if (isExpectedNoIndexDiff(error)) {
+      return error.stdout;
+    }
+
+    throw error;
+  }
+}
+
+function isExpectedNoIndexDiff(
+  error: unknown,
+): error is { readonly code: 1; readonly stdout: string } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "stdout" in error &&
+    error.code === 1 &&
+    typeof error.stdout === "string"
+  );
+}
+
+function joinGitOutputs(outputs: readonly string[]): string {
+  return outputs
+    .map((output) => output.trimEnd())
+    .filter((output) => output.length > 0)
+    .join("\n");
 }
