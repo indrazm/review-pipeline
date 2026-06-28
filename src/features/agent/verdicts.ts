@@ -27,15 +27,92 @@ export async function generateVerdicts(
   kind: VerdictKind,
   content: string,
 ): Promise<ReviewVerdicts | FixVerdicts | LintVerdicts> {
+  const localVerdict = parseLocalVerdict(kind, content);
+
+  if (localVerdict !== undefined) {
+    return localVerdict;
+  }
+
+  try {
+    if (kind === "review") {
+      return await generateParsedVerdicts(kind, content, reviewVerdictsSchema);
+    }
+
+    if (kind === "fix") {
+      return await generateParsedVerdicts(kind, content, fixVerdictsSchema);
+    }
+
+    return await generateParsedVerdicts(kind, content, lintVerdictsSchema);
+  } catch {
+    return fallbackVerdict(kind);
+  }
+}
+
+function parseLocalVerdict(kind: "review", content: string): ReviewVerdicts | undefined;
+function parseLocalVerdict(kind: "fix", content: string): FixVerdicts | undefined;
+function parseLocalVerdict(kind: "lint", content: string): LintVerdicts | undefined;
+function parseLocalVerdict(kind: VerdictKind, content: string): ReviewVerdicts | FixVerdicts | LintVerdicts | undefined;
+function parseLocalVerdict(
+  kind: VerdictKind,
+  content: string,
+): ReviewVerdicts | FixVerdicts | LintVerdicts | undefined {
   if (kind === "review") {
-    return generateParsedVerdicts(kind, content, reviewVerdictsSchema);
+    const verdictsSection = getMarkdownSection(content, "Verdicts");
+    const verdict = matchVerdictMarker(verdictsSection, String.raw`\*\*Verdict:\*\*`, [
+      "pass",
+      "needs changes",
+    ]);
+
+    return verdict === undefined
+      ? undefined
+      : reviewVerdictsSchema.parse({ verdict });
   }
 
   if (kind === "fix") {
-    return generateParsedVerdicts(kind, content, fixVerdictsSchema);
+    const verdict = matchVerdictMarker(content, "FIX_VERDICT:", [
+      "fixed",
+      "not-fixed",
+      "no-op",
+    ]);
+
+    return verdict === undefined ? undefined : fixVerdictsSchema.parse({ verdict });
   }
 
-  return generateParsedVerdicts(kind, content, lintVerdictsSchema);
+  const verdict = matchVerdictMarker(content, "VERDICT:", ["pass", "fail"]);
+
+  return verdict === undefined ? undefined : lintVerdictsSchema.parse({ verdict });
+}
+
+function matchVerdictMarker<T extends string>(
+  content: string,
+  markerPattern: string,
+  allowedVerdicts: readonly T[],
+): T | undefined {
+  const alternatives = allowedVerdicts
+    .map((verdict) => verdict.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const match = content.match(
+    new RegExp(`(^|\\n)\\s*-?\\s*${markerPattern}\\s*(${alternatives})\\s*($|\\n)`, "i"),
+  );
+  const verdict = match?.[2]?.toLowerCase();
+
+  return allowedVerdicts.find((allowedVerdict) => allowedVerdict === verdict);
+}
+
+function fallbackVerdict(kind: "review"): ReviewVerdicts;
+function fallbackVerdict(kind: "fix"): FixVerdicts;
+function fallbackVerdict(kind: "lint"): LintVerdicts;
+function fallbackVerdict(kind: VerdictKind): ReviewVerdicts | FixVerdicts | LintVerdicts;
+function fallbackVerdict(kind: VerdictKind): ReviewVerdicts | FixVerdicts | LintVerdicts {
+  if (kind === "review") {
+    return { verdict: "needs changes" };
+  }
+
+  if (kind === "fix") {
+    return { verdict: "not-fixed" };
+  }
+
+  return { verdict: "fail" };
 }
 
 async function generateParsedVerdicts<T>(
@@ -50,6 +127,15 @@ async function generateParsedVerdicts<T>(
   });
 
   return result.data;
+}
+
+function getMarkdownSection(markdown: string, heading: string): string {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = markdown.match(
+    new RegExp(`(^|\\n)##\\s+${escapedHeading}\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`, "i"),
+  );
+
+  return match?.[2] ?? "";
 }
 
 function verdictInstructions(kind: VerdictKind): string {
