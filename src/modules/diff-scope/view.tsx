@@ -1,0 +1,58 @@
+import { Box, Text } from "ink";
+import { useMenuNavigation, type MenuItem } from "../main-menu/index.js";
+import { DIFF_SCOPE_ITEMS } from "./service.js";
+import type { DiffScopeItem } from "./types.js";
+
+type DiffScopeMenuProps = {
+  readonly mode: MenuItem;
+  readonly onChoose: (item: DiffScopeItem) => void;
+};
+
+export function DiffScopeMenu({ mode, onChoose }: DiffScopeMenuProps) {
+  const { selectedIndex } = useMenuNavigation({
+    itemCount: DIFF_SCOPE_ITEMS.length,
+    onChoose: (index) => {
+      onChoose(DIFF_SCOPE_ITEMS[index]);
+    },
+  });
+
+  return (
+    <Box flexDirection="column" width={62} gap={1}>
+      <Box flexDirection="column">
+        <Text bold wrap="truncate">
+          {mode.label}
+        </Text>
+        <Text dimColor wrap="truncate">
+          Choose diff scope. This decides which git changes
+        </Text>
+        <Text dimColor wrap="truncate">
+          the selected mode will inspect.
+        </Text>
+        <Text dimColor wrap="truncate">
+          {mode.description}
+        </Text>
+      </Box>
+
+      <Box flexDirection="column" gap={1}>
+        {DIFF_SCOPE_ITEMS.map((item, index) => {
+          const isSelected = selectedIndex === index;
+
+          return (
+            <Box key={item.id} flexDirection="column">
+              <Text color={isSelected ? "cyan" : undefined} bold={isSelected}>
+                {isSelected ? "> " : "  "}
+                {index + 1}. {item.label}
+              </Text>
+              <Text dimColor wrap="truncate">
+                {"     "}
+                {item.description}
+              </Text>
+            </Box>
+          );
+        })}
+      </Box>
+
+      <Box height={1} />
+    </Box>
+  );
+}
