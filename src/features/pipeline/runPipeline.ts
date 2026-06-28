@@ -43,6 +43,7 @@ type RunPipelineOptions = {
     lint: AgentLintResult,
     diff: GitDiffSnapshot,
     prWillRun: boolean,
+    prSkipReason: string | undefined,
   ) => void;
   readonly onLintStarted: (
     diff: GitDiffSnapshot,
@@ -128,10 +129,18 @@ export async function runPipeline({
         agentFix,
         shouldSkipFix(hasFixStep, agentFix),
       );
+      const prDecision = getPrRunDecision(
+        hasPrStep,
+        agentLint,
+        agentReview,
+        agentFix,
+      );
+
       onLintCompleted(
         agentLint,
         gitDiff,
-        shouldRunPr(hasPrStep, agentLint, agentReview, agentFix),
+        prDecision.willRun,
+        prDecision.skipReason,
       );
     } else if (step === "pr") {
       if (
@@ -285,22 +294,50 @@ function shouldRunPr(
   review: AgentReviewResult | undefined,
   fix: AgentFixResult | undefined,
 ): boolean {
-  if (!hasPrStep || lint === undefined || !hasResolvedReviewFindings(review, fix)) {
-    return false;
-  }
-
-  return /(^|\n)\s*VERDICT:\s*pass\s*($|\n)/i.test(lint.output);
+  return getPrRunDecision(hasPrStep, lint, review, fix).willRun;
 }
 
-function hasResolvedReviewFindings(
+function getPrRunDecision(
+  hasPrStep: boolean,
+  lint: AgentLintResult | undefined,
   review: AgentReviewResult | undefined,
   fix: AgentFixResult | undefined,
-): boolean {
-  if (review === undefined || getReviewVerdict(review) === "pass") {
-    return true;
+): { readonly skipReason?: string; readonly willRun: boolean } {
+  if (!hasPrStep) {
+    return {
+      skipReason: "pipeline mode does not include a PR step",
+      willRun: false,
+    };
   }
 
-  return getFixVerdict(fix) === "fixed";
+  if (lint === undefined) {
+    return {
+      skipReason: "lint agent did not produce a result",
+      willRun: false,
+    };
+  }
+
+  const lintVerdict = getLintVerdict(lint);
+  if (lintVerdict !== "pass") {
+    return {
+      skipReason: `lint verdict is ${lintVerdict ?? "missing"}`,
+      willRun: false,
+    };
+  }
+
+  const reviewVerdict = review === undefined ? undefined : getReviewVerdict(review);
+  if (reviewVerdict !== undefined && reviewVerdict !== "pass") {
+    const fixVerdict = getFixVerdict(fix);
+
+    if (fixVerdict !== "fixed") {
+      return {
+        skipReason: `unresolved review findings (review verdict: ${reviewVerdict}, fix verdict: ${fixVerdict ?? "missing"})`,
+        willRun: false,
+      };
+    }
+  }
+
+  return { willRun: true };
 }
 
 function getReviewVerdict(
@@ -315,6 +352,16 @@ function getReviewVerdict(
     | "pass"
     | "needs changes"
     | undefined;
+}
+
+function getLintVerdict(
+  lint: AgentLintResult,
+): "pass" | "fail" | undefined {
+  const verdictMatch = lint.output.match(
+    /(^|\n)\s*VERDICT:\s*(pass|fail)\s*($|\n)/i,
+  );
+
+  return verdictMatch?.[2]?.toLowerCase() as "pass" | "fail" | undefined;
 }
 
 function getFixVerdict(

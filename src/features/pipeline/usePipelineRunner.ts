@@ -156,7 +156,7 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             status: "linting",
           });
         },
-        onLintCompleted: (lint) => {
+        onLintCompleted: (lint, _diff, prWillRun, prSkipReason) => {
           if (runIdRef.current !== runId) {
             return;
           }
@@ -164,6 +164,12 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
           logInfo(
             `[rp] ${mode.label} (${diffScope.label}): lint agent completed (${lint.output.length} chars)`,
           );
+
+          if (!prWillRun) {
+            logInfo(
+              `[rp] ${mode.label} (${diffScope.label}): PR skipped: ${prSkipReason ?? "unknown reason"}`,
+            );
+          }
         },
         onPrStarted: (diff, lint) => {
           if (runIdRef.current !== runId) {
