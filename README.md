@@ -4,7 +4,7 @@
 diff, runs verification, applies focused fixes when needed, and prepares a PR
 when the change is ready.
 
-![review-this main menu](assets/review-this-menu.png)
+![review-this screen](assets/review-this-screen.png)
 
 ## Why I Built This
 

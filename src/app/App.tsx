@@ -60,10 +60,10 @@ export function App() {
       rows={rows}
       footer={
         isPipelineOpen
-          ? "q / Esc exit | made by indrazm"
+          ? "q / Esc exit | made by anvia - https://anvia.dev"
           : isConnectProviderOpen
-            ? "Enter continue | Esc exit | made by indrazm"
-            : "Up/Down select | Enter choose | q / Esc exit | made by indrazm"
+            ? "Enter continue | Esc exit | made by anvia - https://anvia.dev"
+            : "Up/Down select | Enter choose | q / Esc exit | made by anvia - https://anvia.dev"
       }
     >
       {isConnectProviderOpen ? (
