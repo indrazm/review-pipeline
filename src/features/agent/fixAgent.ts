@@ -2,39 +2,44 @@ import { AgentBuilder } from "@anvia/core";
 import type { DiffScopeItem } from "../diff-scope/diffScopes.js";
 import type { GitDiffSnapshot } from "../git-diff/getGitDiffStats.js";
 import type { MenuItem } from "../main-menu/menuItems.js";
+import type { AgentReviewResult } from "./reviewAgent.js";
 import { AGENT_MAX_TURNS, createCompletionModel } from "./model.js";
-import { REVIEW_AGENT_INSTRUCTIONS, toReviewPrompt } from "./prompt.js";
+import { FIX_AGENT_INSTRUCTIONS, toFixPrompt } from "./prompt.js";
 import { PtySessionManager } from "./ptySessionManager.js";
 import { createAgentTools } from "./tools.js";
 
-export type AgentReviewResult = {
+export type AgentFixResult = {
   readonly output: string;
 };
 
-type RunReviewAgentOptions = {
+type RunFixAgentOptions = {
   readonly cwd: string;
   readonly diff: GitDiffSnapshot;
   readonly diffScope: DiffScopeItem;
   readonly mode: MenuItem;
+  readonly review: AgentReviewResult;
 };
 
-export async function runReviewAgent({
+export async function runFixAgent({
   cwd,
   diff,
   diffScope,
   mode,
-}: RunReviewAgentOptions): Promise<AgentReviewResult> {
+  review,
+}: RunFixAgentOptions): Promise<AgentFixResult> {
   const ptySessions = new PtySessionManager(cwd);
 
   try {
-    const agent = new AgentBuilder("review-pipeline-reviewer", createCompletionModel())
-      .name("Review Pipeline Reviewer")
-      .instructions(REVIEW_AGENT_INSTRUCTIONS)
+    const agent = new AgentBuilder("review-pipeline-fixer", createCompletionModel())
+      .name("Review Pipeline Fixer")
+      .instructions(FIX_AGENT_INSTRUCTIONS)
       .tools(createAgentTools(ptySessions))
       .defaultMaxTurns(AGENT_MAX_TURNS)
       .build();
 
-    const response = await agent.prompt(toReviewPrompt(mode, diffScope, diff)).send();
+    const response = await agent
+      .prompt(toFixPrompt(mode, diffScope, diff, review))
+      .send();
 
     return {
       output: response.output,

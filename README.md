@@ -3,7 +3,8 @@
 `review-pipeline` is a local terminal UI for running review workflows from the
 current project directory. The CLI is installed as `rp`.
 
-The app is built with pnpm, TypeScript, React, Ink, Anvia, and node-pty.
+The app is built with pnpm, TypeScript, React, Ink, Anvia, Lexa-aware review
+instructions, and node-pty.
 
 ## Current Behavior
 
@@ -25,9 +26,16 @@ Selecting a scope opens a pipeline screen. The current pipeline implementation:
 2. Shows a `Loading Diff` state.
 3. Skips review when the selected scope has no changes.
 4. Passes non-empty git diffs to the review agent.
-5. Shows a `Reviewing ...` state while the agent runs.
-6. Gives the agent two PTY tools: `execCommand` and `writeStdin`.
-7. Marks the run as `Completed.`
+5. Instructs the agent to use Lexa for codebase context when available.
+6. Shows a `Reviewing ...` state while the agent runs.
+7. Shows raw review output for the `Review` mode.
+8. Runs a fixing agent for `Review and Fix` and `Full pipeline` when review
+   findings need fixes.
+9. Runs lint, typecheck, tests, and build through a lint agent for
+   `Full pipeline`.
+10. Runs a PR agent for `Full pipeline` when lint verification passes.
+11. Gives agents two PTY tools: `execCommand` and `writeStdin`.
+12. Marks the run as `Completed.`
 
 The diff line-count summary and review result summary are logged after the
 terminal UI exits.
@@ -51,6 +59,7 @@ The `.env` file is ignored by git.
 - Node.js 22 or newer
 - pnpm 11
 - git
+- Lexa, optional but recommended for richer review context
 
 ## Install
 
