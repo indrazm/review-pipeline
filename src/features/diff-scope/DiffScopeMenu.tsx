@@ -17,13 +17,19 @@ export function DiffScopeMenu({ mode, onChoose }: DiffScopeMenuProps) {
   });
 
   return (
-    <Box flexDirection="column" width={52} gap={1}>
+    <Box flexDirection="column" width={62} gap={1}>
       <Box flexDirection="column">
         <Text bold wrap="truncate">
           {mode.label}
         </Text>
         <Text dimColor wrap="truncate">
-          Choose diff scope
+          Choose diff scope. This decides which git changes
+        </Text>
+        <Text dimColor wrap="truncate">
+          the selected mode will inspect.
+        </Text>
+        <Text dimColor wrap="truncate">
+          {mode.description}
         </Text>
       </Box>
 

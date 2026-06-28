@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Box, Text } from "ink";
 import { BrailleSpinner } from "../../components/BrailleSpinner.js";
+import { ReviewThisLogo } from "../../components/ReviewThisLogo.js";
 import type { DiffScopeItem } from "../diff-scope/diffScopes.js";
 import type { MenuItem } from "../main-menu/menuItems.js";
 import { usePipelineRunner } from "./usePipelineRunner.js";
@@ -22,6 +23,10 @@ export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
 
   return (
     <Box flexDirection="column" flexGrow={1} width="100%" paddingX={1} gap={1}>
+      <Box flexShrink={0}>
+        <ReviewThisLogo />
+      </Box>
+
       <Box flexDirection="column" flexShrink={0}>
         <Text bold wrap="truncate">
           {mode.label}

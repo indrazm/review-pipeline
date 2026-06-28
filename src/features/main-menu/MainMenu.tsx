@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { ReviewThisLogo } from "../../components/ReviewThisLogo.js";
 import { MENU_ITEMS, type MenuItem } from "./menuItems.js";
 import { useMenuNavigation } from "./useMenuNavigation.js";
 
@@ -15,13 +16,15 @@ export function MainMenu({ onChoose }: MainMenuProps) {
   });
 
   return (
-    <Box flexDirection="column" width={44} gap={1}>
+    <Box flexDirection="column" width={62} gap={1}>
+      <ReviewThisLogo />
+
       <Box flexDirection="column">
-        <Text bold wrap="truncate">
-          review-this
+        <Text dimColor wrap="truncate">
+          Pick a run mode, then choose the git diff scope. review-this
         </Text>
         <Text dimColor wrap="truncate">
-          Choose a run mode
+          reads that diff and runs the matching local agent pipeline.
         </Text>
       </Box>
 
@@ -30,10 +33,14 @@ export function MainMenu({ onChoose }: MainMenuProps) {
           const isSelected = selectedIndex === index;
 
           return (
-            <Box key={item.id}>
+            <Box key={item.id} flexDirection="column">
               <Text color={isSelected ? "cyan" : undefined} bold={isSelected}>
                 {isSelected ? "> " : "  "}
                 {index + 1}. {item.label}
+              </Text>
+              <Text dimColor wrap="truncate">
+                {"     "}
+                {item.description}
               </Text>
             </Box>
           );

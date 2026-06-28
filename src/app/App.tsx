@@ -28,8 +28,8 @@ export function App() {
       rows={rows}
       footer={
         isPipelineOpen
-          ? "q / Esc exit"
-          : "Up/Down select | Enter choose | q / Esc exit"
+          ? "q / Esc exit | made by indrazm"
+          : "Up/Down select | Enter choose | q / Esc exit | made by indrazm"
       }
     >
       {selectedMode === undefined ? (

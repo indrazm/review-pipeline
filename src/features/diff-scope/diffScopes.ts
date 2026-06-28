@@ -2,17 +2,17 @@ export const DIFF_SCOPE_ITEMS = [
   {
     id: "current-changes",
     label: "Current changes",
-    description: "Working tree changes, including untracked files",
+    description: "Tracked changes since HEAD, plus untracked files.",
   },
   {
     id: "branch-against-main",
     label: "Current branch against main",
-    description: "Committed branch changes since main",
+    description: "Committed changes on this branch compared with main.",
   },
   {
     id: "staged-changes",
     label: "Staged changes",
-    description: "Only what is staged for commit",
+    description: "Only the changes currently staged for commit.",
   },
 ] as const;
 

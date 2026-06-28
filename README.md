@@ -4,6 +4,8 @@
 diff, runs verification, applies focused fixes when needed, and prepares a PR
 when the change is ready.
 
+![review-this main menu](assets/review-this-menu.png)
+
 ## Why I Built This
 
 I built `review-this` because human review is becoming the bottleneck in
