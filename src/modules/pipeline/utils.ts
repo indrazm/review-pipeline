@@ -1,6 +1,6 @@
 import type {
   AgentFixResult,
-  AgentLintResult,
+  AgentVerificationResult,
   AgentReviewResult,
 } from "../agent/types.js";
 import type { GitDiffSnapshot } from "../git-diff/index.js";
@@ -13,7 +13,7 @@ export function hasReviewableDiff(diff: GitDiffSnapshot): boolean {
 export function shouldRunFix(
   hasFixStep: boolean,
   review: AgentReviewResult | undefined,
-  lint: AgentLintResult | undefined,
+  verification: AgentVerificationResult | undefined,
 ): boolean {
   if (!hasFixStep) {
     return false;
@@ -21,9 +21,9 @@ export function shouldRunFix(
 
   const reviewNeedsFix =
     review !== undefined && review.verdicts.verdict !== "pass";
-  const lintNeedsFix = lint !== undefined && lint.verdicts.verdict !== "pass";
+  const verificationNeedsFix = verification !== undefined && verification.verdicts.verdict !== "pass";
 
-  return reviewNeedsFix || lintNeedsFix;
+  return reviewNeedsFix || verificationNeedsFix;
 }
 
 export function shouldSkipFix(
@@ -33,21 +33,19 @@ export function shouldSkipFix(
   return hasFixStep && fix === undefined;
 }
 
-export function shouldSkipPostFixLint(
-  hasPostFixLintStep: boolean,
-  postFixLint: AgentLintResult | undefined,
+export function shouldSkipPostFixVerification(
+  hasPostFixVerificationStep: boolean,
+  postFixVerification: AgentVerificationResult | undefined,
 ): boolean {
-  return hasPostFixLintStep && postFixLint === undefined;
+  return hasPostFixVerificationStep && postFixVerification === undefined;
 }
 
 export function getPrRunDecision(
   hasPrStep: boolean,
-  initialLint: AgentLintResult | undefined,
-  postFixLint: AgentLintResult | undefined,
   review: AgentReviewResult | undefined,
-  fix: AgentFixResult | undefined,
+  verification: AgentVerificationResult | undefined,
 ): {
-  readonly lint?: AgentLintResult;
+  readonly verification?: AgentVerificationResult;
   readonly skipReason?: string;
   readonly willRun: boolean;
 } {
@@ -58,49 +56,39 @@ export function getPrRunDecision(
     };
   }
 
-  if (initialLint === undefined) {
+  if (review === undefined) {
     return {
-      skipReason: "lint agent did not produce a result",
+      skipReason: "review agent did not produce a result",
       willRun: false,
     };
   }
 
-  const initialLintVerdict = initialLint.verdicts.verdict;
-  const reviewVerdict = review?.verdicts.verdict;
-  const needsFix =
-    initialLintVerdict !== "pass" ||
-    (reviewVerdict !== undefined && reviewVerdict !== "pass");
+  const reviewVerdict = review.verdicts.verdict;
 
-  if (!needsFix) {
-    return { lint: initialLint, willRun: true };
-  }
-
-  const fixVerdict = fix?.verdicts.verdict;
-
-  if (fixVerdict !== "fixed") {
+  if (reviewVerdict !== "pass") {
     return {
-      skipReason: `fix was required but did not complete (review verdict: ${reviewVerdict ?? "missing"}, initial lint verdict: ${initialLintVerdict}, fix verdict: ${fixVerdict ?? "missing"})`,
+      skipReason: `latest review did not pass (review verdict: ${reviewVerdict})`,
       willRun: false,
     };
   }
 
-  if (postFixLint === undefined) {
+  if (verification === undefined) {
     return {
-      skipReason: "post-fix verification did not produce a result",
+      skipReason: "verification agent did not produce a result",
       willRun: false,
     };
   }
 
-  const postFixLintVerdict = postFixLint.verdicts.verdict;
+  const verificationVerdict = verification.verdicts.verdict;
 
-  if (postFixLintVerdict !== "pass") {
+  if (verificationVerdict !== "pass") {
     return {
-      skipReason: `post-fix verification failed (review verdict: ${reviewVerdict ?? "missing"}, initial lint verdict: ${initialLintVerdict}, fix verdict: ${fixVerdict}, post-fix lint verdict: ${postFixLintVerdict})`,
+      skipReason: `latest verification failed (review verdict: ${reviewVerdict}, verification verdict: ${verificationVerdict})`,
       willRun: false,
     };
   }
 
-  return { lint: postFixLint, willRun: true };
+  return { verification, willRun: true };
 }
 
 export function formatNoChangesMessage(

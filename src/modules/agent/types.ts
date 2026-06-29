@@ -2,7 +2,13 @@ import type { DiffScopeItem } from "../diff-scope/index.js";
 import type { GitDiffSnapshot } from "../git-diff/index.js";
 import type { MenuItem } from "../main-menu/index.js";
 
-export type VerdictKind = "review" | "fix" | "lint";
+export type VerdictKind = "review" | "fix" | "verification";
+
+export type PrMonitorStatus = "ready" | "failing" | "timeout" | "error";
+
+export type PrRepairTrigger = "checks" | "review-comments";
+
+export type PrRepairVerdict = "fixed" | "not-fixed" | "no-op";
 
 export type PromptAgentOutput = {
   readonly content: string;
@@ -19,24 +25,39 @@ export type FixVerdicts = {
   readonly verdict: "fixed" | "not-fixed" | "no-op";
 };
 
-export type LintVerdicts = {
+export type VerificationVerdicts = {
   readonly verdict: "pass" | "fail";
 };
 
-export type LintRunPhase = "pre-fix" | "post-fix";
+export type VerificationRunPhase = "pre-fix" | "post-fix";
 
 export type AgentFixResult = {
   readonly content: string;
   readonly verdicts: FixVerdicts;
 };
 
-export type AgentLintResult = {
+export type AgentVerificationResult = {
   readonly content: string;
-  readonly verdicts: LintVerdicts;
+  readonly verdicts: VerificationVerdicts;
 };
 
 export type AgentPrResult = {
   readonly content: string;
+  readonly prUrl?: string | undefined;
+};
+
+export type AgentPrMonitorResult = {
+  readonly content: string;
+  readonly prUrl: string;
+  readonly repairable: boolean;
+  readonly repairTriggers: readonly PrRepairTrigger[];
+  readonly status: PrMonitorStatus;
+};
+
+export type AgentPrRepairResult = {
+  readonly content: string;
+  readonly prUrl: string;
+  readonly verdict: PrRepairVerdict;
 };
 
 export type AgentReviewResult = {
@@ -45,20 +66,23 @@ export type AgentReviewResult = {
 };
 
 export type RunFixAgentOptions = {
+  readonly attempt?: number;
   readonly cwd: string;
   readonly diff: GitDiffSnapshot;
   readonly diffScope: DiffScopeItem;
-  readonly lint?: AgentLintResult | undefined;
+  readonly verification?: AgentVerificationResult | undefined;
+  readonly maxAttempts?: number;
   readonly mode: MenuItem;
+  readonly previousFix?: AgentFixResult | undefined;
   readonly review: AgentReviewResult;
 };
 
-export type RunLintAgentOptions = {
+export type RunVerificationAgentOptions = {
   readonly cwd: string;
   readonly diff: GitDiffSnapshot;
   readonly diffScope: DiffScopeItem;
   readonly mode: MenuItem;
-  readonly phase?: LintRunPhase;
+  readonly phase?: VerificationRunPhase;
 };
 
 export type RunPrAgentOptions = {
@@ -66,8 +90,33 @@ export type RunPrAgentOptions = {
   readonly diff: GitDiffSnapshot;
   readonly diffScope: DiffScopeItem;
   readonly fix?: AgentFixResult | undefined;
-  readonly lint: AgentLintResult;
+  readonly verification: AgentVerificationResult;
   readonly mode: MenuItem;
+  readonly review?: AgentReviewResult | undefined;
+};
+
+export type RunPrMonitorAgentOptions = {
+  readonly cwd: string;
+  readonly diff: GitDiffSnapshot;
+  readonly diffScope: DiffScopeItem;
+  readonly fix?: AgentFixResult | undefined;
+  readonly verification: AgentVerificationResult;
+  readonly mode: MenuItem;
+  readonly pr: AgentPrResult & { readonly prUrl: string };
+  readonly review?: AgentReviewResult | undefined;
+};
+
+export type RunPrRepairAgentOptions = {
+  readonly attempt: number;
+  readonly cwd: string;
+  readonly diff: GitDiffSnapshot;
+  readonly diffScope: DiffScopeItem;
+  readonly fix?: AgentFixResult | undefined;
+  readonly verification: AgentVerificationResult;
+  readonly maxAttempts: number;
+  readonly mode: MenuItem;
+  readonly monitor: AgentPrMonitorResult;
+  readonly pr: AgentPrResult & { readonly prUrl: string };
   readonly review?: AgentReviewResult | undefined;
 };
 

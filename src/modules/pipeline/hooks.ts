@@ -40,30 +40,53 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
           setState({
             diff,
             diffScope,
+            fixAttempts: [],
             fixSkipped: mode.id !== "review",
-            lintSkipped: mode.id === "full-pipeline",
+            verificationAttempts: [],
+            verificationSkipped: mode.id === "full-pipeline",
             mode,
-            postFixLintSkipped: mode.id === "full-pipeline",
+            postFixVerificationSkipped: mode.id === "full-pipeline",
+            prMonitorAttempts: [],
+            prMonitorSkipped: mode.id === "full-pipeline",
+            prRepairAttempts: [],
+            prRepairSkipped: mode.id === "full-pipeline",
             prSkipped: mode.id === "full-pipeline",
+            reviewAttempts: [],
             reviewSkipped: true,
             status: "completed",
           });
         },
-        onFixCompleted: (fix) => {
+        onFixCompleted: (
+          fix,
+          _diff,
+          _review,
+          _verification,
+          attempt,
+          maxAttempts,
+        ) => {
           if (runIdRef.current !== runId) {
             return;
           }
 
           logInfo(
-            `[review-this] ${mode.label} (${diffScope.label}): fix agent completed (${fix.content.length} chars)`,
+            `[review-this] ${mode.label} (${diffScope.label}): fix agent attempt ${attempt}/${maxAttempts} completed with ${fix.verdicts.verdict} (${fix.content.length} chars)`,
           );
         },
-        onFixStarted: (diff, review, lint) => {
+        onFixStarted: (diff, review, verification, attempt, maxAttempts) => {
           if (runIdRef.current !== runId) {
             return;
           }
 
-          setState({ diff, diffScope, lint, mode, review, status: "fixing" });
+          setState({
+            diff,
+            diffScope,
+            fixAttempt: attempt,
+            verification,
+            maxFixAttempts: maxAttempts,
+            mode,
+            review,
+            status: "fixing",
+          });
         },
         onReviewCompleted: (review) => {
           if (runIdRef.current !== runId) {
@@ -74,7 +97,7 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             `[review-this] ${mode.label} (${diffScope.label}): agent review completed (${review.content.length} chars)`,
           );
         },
-        onLintStarted: (diff, review, fix, fixSkipped) => {
+        onVerificationStarted: (diff, review, fix, fixSkipped) => {
           if (runIdRef.current !== runId) {
             return;
           }
@@ -86,19 +109,26 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             fixSkipped,
             mode,
             review,
-            status: "linting",
+            status: "verifying",
           });
         },
-        onLintCompleted: (lint) => {
+        onVerificationCompleted: (verification) => {
           if (runIdRef.current !== runId) {
             return;
           }
 
           logInfo(
-            `[review-this] ${mode.label} (${diffScope.label}): lint agent completed (${lint.content.length} chars)`,
+            `[review-this] ${mode.label} (${diffScope.label}): verification agent completed (${verification.content.length} chars)`,
           );
         },
-        onPostFixLintStarted: (diff, review, fix, lint) => {
+        onPostFixVerificationStarted: (
+          diff,
+          review,
+          fix,
+          verification,
+          attempt,
+          maxAttempts,
+        ) => {
           if (runIdRef.current !== runId) {
             return;
           }
@@ -108,22 +138,24 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             diffScope,
             fix,
             fixSkipped: false,
-            lint,
+            verification,
+            maxVerificationAttempts: maxAttempts,
             mode,
             review,
             status: "verifying-after-fix",
+            verificationAttempt: attempt,
           });
         },
-        onPostFixLintCompleted: (lint) => {
+        onPostFixVerificationCompleted: (verification, _diff, _review, _fix, _initialVerification, attempt, maxAttempts) => {
           if (runIdRef.current !== runId) {
             return;
           }
 
           logInfo(
-            `[review-this] ${mode.label} (${diffScope.label}): post-fix verification completed (${lint.content.length} chars)`,
+            `[review-this] ${mode.label} (${diffScope.label}): post-fix verification attempt ${attempt}/${maxAttempts} completed with ${verification.verdicts.verdict} (${verification.content.length} chars)`,
           );
         },
-        onPrStarted: (diff, review, fix, lint) => {
+        onPrStarted: (diff, review, fix, verification) => {
           if (runIdRef.current !== runId) {
             return;
           }
@@ -133,7 +165,7 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             diffScope,
             fix,
             fixSkipped: mode.id !== "review" && fix === undefined,
-            lint,
+            verification,
             mode,
             review,
             status: "preparing-pr",
@@ -147,6 +179,70 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
           logInfo(
             `[review-this] ${mode.label} (${diffScope.label}): PR agent completed (${pr.content.length} chars)`,
           );
+        },
+        onPrMonitorCompleted: (monitor) => {
+          if (runIdRef.current !== runId) {
+            return;
+          }
+
+          logInfo(
+            `[review-this] ${mode.label} (${diffScope.label}): PR monitor completed with ${monitor.status} (${monitor.content.length} chars)`,
+          );
+        },
+        onPrMonitorStarted: (diff, review, fix, verification, pr) => {
+          if (runIdRef.current !== runId) {
+            return;
+          }
+
+          setState({
+            diff,
+            diffScope,
+            fix,
+            fixSkipped: mode.id !== "review" && fix === undefined,
+            verification,
+            mode,
+            pr,
+            review,
+            status: "monitoring-pr",
+          });
+        },
+        onPrRepairCompleted: (repair) => {
+          if (runIdRef.current !== runId) {
+            return;
+          }
+
+          logInfo(
+            `[review-this] ${mode.label} (${diffScope.label}): PR repair completed with ${repair.verdict} (${repair.content.length} chars)`,
+          );
+        },
+        onPrRepairStarted: (
+          diff,
+          review,
+          fix,
+          verification,
+          pr,
+          monitor,
+          repairAttempt,
+          maxRepairAttempts,
+        ) => {
+          if (runIdRef.current !== runId) {
+            return;
+          }
+
+          setState({
+            diff,
+            diffScope,
+            fix,
+            fixSkipped: mode.id !== "review" && fix === undefined,
+            verification,
+            maxRepairAttempts,
+            mode,
+            pr,
+            prMonitor: monitor,
+            repairAttempt,
+            review,
+            status: "repairing-pr",
+          });
         },
       })
         .then((result) => {
@@ -164,19 +260,47 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             );
           }
 
+          if (
+            result.prMonitorSkipped &&
+            result.prMonitorSkipReason !== undefined
+          ) {
+            logInfo(
+              `[review-this] ${mode.label} (${diffScope.label}): PR monitor skipped: ${result.prMonitorSkipReason}`,
+            );
+          }
+
+          if (
+            result.prRepairSkipped &&
+            result.prRepairSkipReason !== undefined
+          ) {
+            logInfo(
+              `[review-this] ${mode.label} (${diffScope.label}): PR repair skipped: ${result.prRepairSkipReason}`,
+            );
+          }
+
           setState({
             diff: result.gitDiff,
             diffScope,
             fix: result.agentFix,
+            fixAttempts: result.agentFixAttempts,
             fixSkipped: result.fixSkipped,
-            lint: result.agentLint,
-            lintSkipped: result.lintSkipped,
+            verification: result.agentVerification,
+            verificationAttempts: result.agentVerificationAttempts,
+            verificationSkipped: result.verificationSkipped,
             mode,
-            postFixLint: result.agentPostFixLint,
-            postFixLintSkipped: result.postFixLintSkipped,
+            postFixVerification: result.agentPostFixVerification,
+            postFixVerificationSkipped: result.postFixVerificationSkipped,
             pr: result.agentPr,
+            prSkipReason: result.prSkipReason,
+            prMonitor: result.agentPrMonitor,
+            prMonitorAttempts: result.agentPrMonitorAttempts,
+            prMonitorSkipped: result.prMonitorSkipped,
+            prRepair: result.agentPrRepair,
+            prRepairAttempts: result.agentPrRepairAttempts,
+            prRepairSkipped: result.prRepairSkipped,
             prSkipped: result.prSkipped,
             review: result.agentReview,
+            reviewAttempts: result.agentReviewAttempts,
             reviewSkipped: result.reviewSkipped,
             status: "completed",
           });

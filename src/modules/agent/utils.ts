@@ -1,6 +1,9 @@
 import type {
   FixVerdicts,
-  LintVerdicts,
+  VerificationVerdicts,
+  PrMonitorStatus,
+  PrRepairTrigger,
+  PrRepairVerdict,
   ReviewVerdicts,
   VerdictKind,
 } from "./types.js";
@@ -55,15 +58,96 @@ export function matchVerdictMarker<T extends string>(
   return allowedVerdicts.find((allowedVerdict) => allowedVerdict === verdict);
 }
 
+export function extractPrUrl(content: string): string | undefined {
+  const resultLine = content.match(/(^|\n)\s*PR:\s*(\S+)\s*($|\n)/i);
+  const rawUrl = resultLine?.[2];
+
+  if (rawUrl === undefined || rawUrl.toLowerCase() === "not") {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(rawUrl);
+
+    if (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      /\/pull\/\d+\/?$/.test(url.pathname)
+    ) {
+      return url.toString().replace(/\/$/, "");
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+export function matchPrMonitorStatus(content: string): PrMonitorStatus | undefined {
+  return matchVerdictMarker(content, "PR_MONITOR_STATUS:", [
+    "ready",
+    "failing",
+    "timeout",
+    "error",
+  ]);
+}
+
+export function matchPrRepairable(content: string): boolean | undefined {
+  const marker = matchVerdictMarker(content, "PR_REPAIR_TRIGGER:", [
+    "yes",
+    "no",
+  ]);
+
+  if (marker !== undefined) {
+    return marker === "yes";
+  }
+
+  const repairable = matchVerdictMarker(content, "Repairable:", ["yes", "no"]);
+
+  return repairable === undefined ? undefined : repairable === "yes";
+}
+
+export function matchPrRepairTriggers(
+  content: string,
+): readonly PrRepairTrigger[] {
+  const match = content.match(
+    /(^|\n)\s*-?\s*PR_REPAIR_TRIGGERS:\s*([^\n]*)\s*($|\n)/i,
+  );
+  const triggerText = match?.[2] ?? "";
+
+  return parsePrRepairTriggers(triggerText);
+}
+
+export function matchPrRepairVerdict(content: string): PrRepairVerdict | undefined {
+  return matchVerdictMarker(content, "PR_REPAIR_VERDICT:", [
+    "fixed",
+    "not-fixed",
+    "no-op",
+  ]);
+}
+
+function parsePrRepairTriggers(input: string): readonly PrRepairTrigger[] {
+  const triggers = new Set<PrRepairTrigger>();
+
+  for (const rawPart of input.split(/[, ]+/)) {
+    const part = rawPart.trim().toLowerCase();
+
+    if (part === "checks" || part === "review-comments") {
+      triggers.add(part);
+    }
+  }
+
+  return [...triggers];
+}
+
 export function fallbackVerdict(kind: "review"): ReviewVerdicts;
 export function fallbackVerdict(kind: "fix"): FixVerdicts;
-export function fallbackVerdict(kind: "lint"): LintVerdicts;
+export function fallbackVerdict(kind: "verification"): VerificationVerdicts;
 export function fallbackVerdict(
   kind: VerdictKind,
-): ReviewVerdicts | FixVerdicts | LintVerdicts;
+): ReviewVerdicts | FixVerdicts | VerificationVerdicts;
 export function fallbackVerdict(
   kind: VerdictKind,
-): ReviewVerdicts | FixVerdicts | LintVerdicts {
+): ReviewVerdicts | FixVerdicts | VerificationVerdicts {
   if (kind === "review") {
     return { verdict: "needs changes" };
   }
@@ -210,4 +294,3 @@ function unquotePath(path: string): string {
     return path.slice(1, -1);
   }
 }
-

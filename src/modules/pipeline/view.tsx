@@ -48,7 +48,10 @@ export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
       />
       <PipelineNoChanges state={state} />
       <PipelineCompletion state={state} />
+      <PipelineQualityLoopOutput state={state} />
       <PipelineReviewOutput state={state} />
+      <PipelinePrMonitorOutput state={state} />
+      <PipelinePrRepairOutput state={state} />
     </Box>
   );
 }
@@ -70,10 +73,12 @@ function PipelineSteps({
         isActive={state.status === "idle" || state.status === "loading-diff"}
         isDone={
           state.status === "reviewing" ||
-          state.status === "linting" ||
+          state.status === "verifying" ||
           state.status === "fixing" ||
           state.status === "verifying-after-fix" ||
+          state.status === "monitoring-pr" ||
           state.status === "preparing-pr" ||
+          state.status === "repairing-pr" ||
           state.status === "completed" ||
           state.status === "failed"
         }
@@ -83,9 +88,11 @@ function PipelineSteps({
         isActive={state.status === "reviewing"}
         isDone={
           state.status === "fixing" ||
-          state.status === "linting" ||
+          state.status === "verifying" ||
           state.status === "verifying-after-fix" ||
+          state.status === "monitoring-pr" ||
           state.status === "preparing-pr" ||
+          state.status === "repairing-pr" ||
           (state.status === "completed" && !state.reviewSkipped)
         }
         isSkipped={state.status === "completed" && state.reviewSkipped}
@@ -93,15 +100,17 @@ function PipelineSteps({
       />
       {showsFullPipelineSteps && (
         <StepLine
-          isActive={state.status === "linting"}
+          isActive={state.status === "verifying"}
           isDone={
             state.status === "fixing" ||
             state.status === "verifying-after-fix" ||
+            state.status === "monitoring-pr" ||
             state.status === "preparing-pr" ||
-            (state.status === "completed" && !state.lintSkipped)
+            state.status === "repairing-pr" ||
+            (state.status === "completed" && !state.verificationSkipped)
           }
-          isSkipped={state.status === "completed" && state.lintSkipped}
-          label="Linting ..."
+          isSkipped={state.status === "completed" && state.verificationSkipped}
+          label="Verifying ..."
         />
       )}
       {showsFixStep && (
@@ -109,33 +118,74 @@ function PipelineSteps({
           isActive={state.status === "fixing"}
           isDone={
             state.status === "verifying-after-fix" ||
+            state.status === "monitoring-pr" ||
             state.status === "preparing-pr" ||
+            state.status === "repairing-pr" ||
             (state.status === "completed" && !state.fixSkipped)
           }
           isSkipped={
             (state.status === "preparing-pr" && state.fixSkipped) ||
+            (state.status === "monitoring-pr" && state.fixSkipped) ||
+            (state.status === "repairing-pr" && state.fixSkipped) ||
             (state.status === "completed" && state.fixSkipped)
           }
-          label="Fixing ..."
+          label={
+            state.status === "fixing"
+              ? `Fixing (${state.fixAttempt}/${state.maxFixAttempts}) ...`
+              : "Fixing ..."
+          }
         />
       )}
       {showsFullPipelineSteps && (
         <StepLine
           isActive={state.status === "verifying-after-fix"}
           isDone={
+            state.status === "monitoring-pr" ||
             state.status === "preparing-pr" ||
-            (state.status === "completed" && !state.postFixLintSkipped)
+            state.status === "repairing-pr" ||
+            (state.status === "completed" && !state.postFixVerificationSkipped)
           }
-          isSkipped={state.status === "completed" && state.postFixLintSkipped}
-          label="Verifying after fix ..."
+          isSkipped={state.status === "completed" && state.postFixVerificationSkipped}
+          label={
+            state.status === "verifying-after-fix"
+              ? `Verifying after fix (${state.verificationAttempt}/${state.maxVerificationAttempts}) ...`
+              : "Verifying after fix ..."
+          }
         />
       )}
       {showsFullPipelineSteps && (
         <StepLine
           isActive={state.status === "preparing-pr"}
-          isDone={state.status === "completed" && !state.prSkipped}
+          isDone={
+            state.status === "monitoring-pr" ||
+            state.status === "repairing-pr" ||
+            (state.status === "completed" && !state.prSkipped)
+          }
           isSkipped={state.status === "completed" && state.prSkipped}
           label="Preparing PR ..."
+        />
+      )}
+      {showsFullPipelineSteps && (
+        <StepLine
+          isActive={state.status === "monitoring-pr"}
+          isDone={
+            state.status === "repairing-pr" ||
+            (state.status === "completed" && !state.prMonitorSkipped)
+          }
+          isSkipped={state.status === "completed" && state.prMonitorSkipped}
+          label="Monitoring PR ..."
+        />
+      )}
+      {showsFullPipelineSteps && (
+        <StepLine
+          isActive={state.status === "repairing-pr"}
+          isDone={state.status === "completed" && !state.prRepairSkipped}
+          isSkipped={state.status === "completed" && state.prRepairSkipped}
+          label={
+            state.status === "repairing-pr"
+              ? `Repairing PR (${state.repairAttempt}/${state.maxRepairAttempts}) ...`
+              : "Repairing PR ..."
+          }
         />
       )}
       {state.status === "failed" && (
@@ -199,6 +249,14 @@ function PipelineCompletion({ state }: PipelineCompletionProps) {
     return null;
   }
 
+  if (state.prSkipped && state.prSkipReason !== undefined) {
+    return (
+      <Text color="yellow" wrap="wrap">
+        Stopped before PR: {state.prSkipReason}
+      </Text>
+    );
+  }
+
   return (
     <Text color="green" wrap="truncate">
       Completed.
@@ -209,6 +267,69 @@ function PipelineCompletion({ state }: PipelineCompletionProps) {
 type PipelineReviewOutputProps = {
   readonly state: PipelineRunState;
 };
+
+type PipelineQualityLoopOutputProps = {
+  readonly state: PipelineRunState;
+};
+
+function PipelineQualityLoopOutput({ state }: PipelineQualityLoopOutputProps) {
+  if (state.status !== "completed" || state.mode.id !== "full-pipeline") {
+    return null;
+  }
+
+  const latestReview = state.review;
+  const latestVerification = state.verification;
+  const fixAttempts = state.fixAttempts;
+
+  if (
+    latestReview === undefined &&
+    latestVerification === undefined &&
+    fixAttempts.length === 0
+  ) {
+    return null;
+  }
+
+  return (
+    <Box flexDirection="column" flexShrink={0} width="100%">
+      <Text bold>Quality gate</Text>
+      {latestReview === undefined ? (
+        <Text dimColor wrap="truncate">
+          Review: skipped
+        </Text>
+      ) : (
+        <Text color={reviewVerdictColor(latestReview.verdicts.verdict)} wrap="truncate">
+          Review: {latestReview.verdicts.verdict}
+        </Text>
+      )}
+      {latestVerification === undefined ? (
+        <Text dimColor wrap="truncate">
+          Verification: skipped
+        </Text>
+      ) : (
+        <Text color={verificationVerdictColor(latestVerification.verdicts.verdict)} wrap="truncate">
+          Verification: {latestVerification.verdicts.verdict}
+        </Text>
+      )}
+      {fixAttempts.length === 0 ? (
+        <Text dimColor wrap="truncate">
+          Fix attempts: none
+        </Text>
+      ) : (
+        <Text wrap="truncate">
+          Fix attempts:{" "}
+          {fixAttempts
+            .map((fix, index) => `${index + 1}:${fix.verdicts.verdict}`)
+            .join(", ")}
+        </Text>
+      )}
+      {state.prSkipped && state.prSkipReason !== undefined && (
+        <Text color="yellow" wrap="wrap">
+          Blocked before PR: {state.prSkipReason}
+        </Text>
+      )}
+    </Box>
+  );
+}
 
 function PipelineReviewOutput({ state }: PipelineReviewOutputProps) {
   if (
@@ -236,4 +357,122 @@ function PipelineReviewOutput({ state }: PipelineReviewOutputProps) {
       )}
     </Box>
   );
+}
+
+type PipelinePrMonitorOutputProps = {
+  readonly state: PipelineRunState;
+};
+
+function PipelinePrMonitorOutput({ state }: PipelinePrMonitorOutputProps) {
+  if (
+    state.status !== "completed" ||
+    state.mode.id !== "full-pipeline" ||
+    state.prMonitorSkipped ||
+    state.prMonitor === undefined
+  ) {
+    return null;
+  }
+
+  const output = state.prMonitor.content.trim();
+
+  return (
+    <Box flexDirection="column" flexShrink={1} overflow="hidden" width="100%">
+      <Text bold>PR monitor output</Text>
+      <Text color={monitorStatusColor(state.prMonitor.status)} wrap="truncate">
+        Status: {state.prMonitor.status}
+      </Text>
+      {output.length === 0 ? (
+        <Text dimColor>No PR monitor output.</Text>
+      ) : (
+        output.split(/\r?\n/).map((line, index) => (
+          <Text key={`${index}-${line}`} wrap="wrap">
+            {line.length === 0 ? " " : line}
+          </Text>
+        ))
+      )}
+    </Box>
+  );
+}
+
+type PipelinePrRepairOutputProps = {
+  readonly state: PipelineRunState;
+};
+
+function PipelinePrRepairOutput({ state }: PipelinePrRepairOutputProps) {
+  if (
+    state.status !== "completed" ||
+    state.mode.id !== "full-pipeline" ||
+    state.prRepairSkipped ||
+    state.prRepair === undefined
+  ) {
+    return null;
+  }
+
+  const output = state.prRepair.content.trim();
+
+  return (
+    <Box flexDirection="column" flexShrink={1} overflow="hidden" width="100%">
+      <Text bold>PR repair output</Text>
+      <Text color={repairStatusColor(state.prRepair.verdict)} wrap="truncate">
+        Verdict: {state.prRepair.verdict}
+      </Text>
+      {output.length === 0 ? (
+        <Text dimColor>No PR repair output.</Text>
+      ) : (
+        output.split(/\r?\n/).map((line, index) => (
+          <Text key={`${index}-${line}`} wrap="wrap">
+            {line.length === 0 ? " " : line}
+          </Text>
+        ))
+      )}
+    </Box>
+  );
+}
+
+function monitorStatusColor(
+  status: NonNullable<
+    Extract<PipelineRunState, { readonly status: "completed" }>["prMonitor"]
+  >["status"],
+): "green" | "red" | "yellow" {
+  if (status === "ready") {
+    return "green";
+  }
+
+  if (status === "failing" || status === "error") {
+    return "red";
+  }
+
+  return "yellow";
+}
+
+function reviewVerdictColor(
+  verdict: NonNullable<
+    Extract<PipelineRunState, { readonly status: "completed" }>["review"]
+  >["verdicts"]["verdict"],
+): "green" | "red" {
+  return verdict === "pass" ? "green" : "red";
+}
+
+function verificationVerdictColor(
+  verdict: NonNullable<
+    Extract<PipelineRunState, { readonly status: "completed" }>["verification"]
+  >["verdicts"]["verdict"],
+): "green" | "red" {
+  return verdict === "pass" ? "green" : "red";
+}
+
+function repairStatusColor(
+  verdict: NonNullable<
+    Extract<PipelineRunState, { readonly status: "completed" }>["prRepair"]
+  >["verdict"],
+): "green" | "red" | "yellow" {
+  if (verdict === "fixed") {
+    return "green";
+  }
+
+  if (verdict === "not-fixed") {
+    return "red";
+  }
+
+  return "yellow";
 }

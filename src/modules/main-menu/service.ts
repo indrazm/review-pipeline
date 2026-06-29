@@ -12,7 +12,7 @@ export const RUN_MODE_ITEMS = [
   {
     id: "full-pipeline",
     label: "Full pipeline",
-    description: "Reviews, verifies, fixes, then prepares a PR.",
+    description: "Reviews, verifies, fixes, prepares a PR, then monitors and repairs it.",
   },
 ] as const;
 
