@@ -37,11 +37,11 @@ const MAX_PR_REPAIR_ATTEMPTS = 2;
 export const PIPELINE_DEFINITIONS: Record<MenuItem["id"], PipelineDefinition> = {
   review: {
     mode: "review",
-    steps: ["git-diff", "review"],
+    steps: ["git-diff", "review", "verification"],
   },
   "review-and-fix": {
     mode: "review-and-fix",
-    steps: ["git-diff", "review", "fix"],
+    steps: ["git-diff", "review", "verification", "fix", "post-fix-verification"],
   },
   "full-pipeline": {
     mode: "full-pipeline",

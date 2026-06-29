@@ -12,6 +12,12 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
   const run = useCallback(
     (mode: MenuItem, diffScope: DiffScopeItem) => {
       const runId = runIdRef.current + 1;
+      const hasInitialVerificationStep =
+        mode.id === "review" ||
+        mode.id === "review-and-fix" ||
+        mode.id === "full-pipeline";
+      const hasPostFixVerificationStep =
+        mode.id === "review-and-fix" || mode.id === "full-pipeline";
 
       runIdRef.current = runId;
       setState({ diffScope, mode, status: "loading-diff" });
@@ -43,9 +49,9 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             fixAttempts: [],
             fixSkipped: mode.id !== "review",
             verificationAttempts: [],
-            verificationSkipped: mode.id === "full-pipeline",
+            verificationSkipped: hasInitialVerificationStep,
             mode,
-            postFixVerificationSkipped: mode.id === "full-pipeline",
+            postFixVerificationSkipped: hasPostFixVerificationStep,
             prMonitorAttempts: [],
             prMonitorSkipped: mode.id === "full-pipeline",
             prRepairAttempts: [],

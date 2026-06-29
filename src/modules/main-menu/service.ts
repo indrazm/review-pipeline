@@ -2,12 +2,12 @@ export const RUN_MODE_ITEMS = [
   {
     id: "review",
     label: "Review",
-    description: "Reports findings from the selected diff without edits.",
+    description: "Reviews, then runs available typecheck, tests, and build without edits.",
   },
   {
     id: "review-and-fix",
     label: "Review and Fix",
-    description: "Reviews the diff, then fixes supported findings.",
+    description: "Reviews, verifies, fixes supported issues, then verifies again.",
   },
   {
     id: "full-pipeline",

@@ -17,6 +17,12 @@ type PipelineScreenProps = {
 export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
   const { run, state } = usePipelineRunner(cwd);
   const showsFixStep = mode.id !== "review";
+  const showsInitialVerificationStep =
+    mode.id === "review" ||
+    mode.id === "review-and-fix" ||
+    mode.id === "full-pipeline";
+  const showsPostFixVerificationStep =
+    mode.id === "review-and-fix" || mode.id === "full-pipeline";
   const showsFullPipelineSteps = mode.id === "full-pipeline";
 
   useEffect(() => {
@@ -44,12 +50,15 @@ export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
       <PipelineSteps
         showsFixStep={showsFixStep}
         showsFullPipelineSteps={showsFullPipelineSteps}
+        showsInitialVerificationStep={showsInitialVerificationStep}
+        showsPostFixVerificationStep={showsPostFixVerificationStep}
         state={state}
       />
       <PipelineNoChanges state={state} />
       <PipelineCompletion state={state} />
       <PipelineQualityLoopOutput state={state} />
       <PipelineReviewOutput state={state} />
+      <PipelineVerificationOutput state={state} />
       <PipelinePrMonitorOutput state={state} />
       <PipelinePrRepairOutput state={state} />
     </Box>
@@ -59,12 +68,16 @@ export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
 type PipelineStepsProps = {
   readonly showsFixStep: boolean;
   readonly showsFullPipelineSteps: boolean;
+  readonly showsInitialVerificationStep: boolean;
+  readonly showsPostFixVerificationStep: boolean;
   readonly state: PipelineRunState;
 };
 
 function PipelineSteps({
   showsFixStep,
   showsFullPipelineSteps,
+  showsInitialVerificationStep,
+  showsPostFixVerificationStep,
   state,
 }: PipelineStepsProps) {
   return (
@@ -98,7 +111,7 @@ function PipelineSteps({
         isSkipped={state.status === "completed" && state.reviewSkipped}
         label="Reviewing ..."
       />
-      {showsFullPipelineSteps && (
+      {showsInitialVerificationStep && (
         <StepLine
           isActive={state.status === "verifying"}
           isDone={
@@ -136,7 +149,7 @@ function PipelineSteps({
           }
         />
       )}
-      {showsFullPipelineSteps && (
+      {showsPostFixVerificationStep && (
         <StepLine
           isActive={state.status === "verifying-after-fix"}
           isDone={
@@ -268,12 +281,19 @@ type PipelineReviewOutputProps = {
   readonly state: PipelineRunState;
 };
 
+type PipelineVerificationOutputProps = {
+  readonly state: PipelineRunState;
+};
+
 type PipelineQualityLoopOutputProps = {
   readonly state: PipelineRunState;
 };
 
 function PipelineQualityLoopOutput({ state }: PipelineQualityLoopOutputProps) {
-  if (state.status !== "completed" || state.mode.id !== "full-pipeline") {
+  if (
+    state.status !== "completed" ||
+    (state.mode.id !== "review-and-fix" && state.mode.id !== "full-pipeline")
+  ) {
     return null;
   }
 
@@ -348,6 +368,37 @@ function PipelineReviewOutput({ state }: PipelineReviewOutputProps) {
       <Text bold>Review output</Text>
       {output.length === 0 ? (
         <Text dimColor>No review output.</Text>
+      ) : (
+        output.split(/\r?\n/).map((line, index) => (
+          <Text key={`${index}-${line}`} wrap="wrap">
+            {line.length === 0 ? " " : line}
+          </Text>
+        ))
+      )}
+    </Box>
+  );
+}
+
+function PipelineVerificationOutput({ state }: PipelineVerificationOutputProps) {
+  if (
+    state.status !== "completed" ||
+    state.mode.id !== "review" ||
+    state.verificationSkipped ||
+    state.verification === undefined
+  ) {
+    return null;
+  }
+
+  const output = state.verification.content.trim();
+
+  return (
+    <Box flexDirection="column" flexShrink={1} overflow="hidden" width="100%">
+      <Text bold>Verification output</Text>
+      <Text color={verificationVerdictColor(state.verification.verdicts.verdict)} wrap="truncate">
+        Verification: {state.verification.verdicts.verdict}
+      </Text>
+      {output.length === 0 ? (
+        <Text dimColor>No verification output.</Text>
       ) : (
         output.split(/\r?\n/).map((line, index) => (
           <Text key={`${index}-${line}`} wrap="wrap">

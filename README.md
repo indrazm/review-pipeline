@@ -25,8 +25,8 @@ not to repeatedly catching issues an agent could have found and fixed locally.
 
 ## Workflow
 
-- `Review`: review the selected diff.
-- `Review and Fix`: review the diff, then fix review findings.
+- `Review`: review, then run available typecheck, tests, and build without edits.
+- `Review and Fix`: review, verify, fix supported issues, then verify again.
 - `Full pipeline`: review, verify, fix, prepare a PR, then monitor and repair
   failing PR checks when possible.
 

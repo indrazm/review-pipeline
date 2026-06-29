@@ -15,8 +15,8 @@ import {
   toPrRepairPrompt,
   toReviewPrompt,
 } from "./prompts.js";
-import { createPrMonitorTools } from "./pr-monitor-tools.js";
-import { createAgentTools, PtySessionManager } from "./tools.js";
+import { createAgentTools, PtySessionManager } from "./tools/command.js";
+import { createPrMonitorTools } from "./tools/pr-monitor.js";
 import type {
   AgentFixResult,
   AgentVerificationResult,

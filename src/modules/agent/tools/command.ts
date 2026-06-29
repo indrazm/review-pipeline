@@ -3,7 +3,7 @@ import process from "node:process";
 import { createTool } from "@anvia/core";
 import pty, { type IPty } from "node-pty";
 import { z } from "zod";
-import type { PtyCommandResult } from "./types.js";
+import type { PtyCommandResult } from "../types.js";
 
 const DEFAULT_WAIT_MS = 750;
 const MAX_WAIT_MS = 5_000;
@@ -210,4 +210,3 @@ async function wait(milliseconds: number): Promise<void> {
     setTimeout(resolve, milliseconds);
   });
 }
-
