@@ -1,4 +1,13 @@
-export { getGitDiff, getGitDiffStats } from "./service.js";
-export type { GitDiffSnapshot, GitDiffStats } from "./types.js";
-export { parseGitNumstat } from "./utils.js";
-
+export { getGitDiff, getGitDiffStats, getGitDiffSummary } from "./service.js";
+export type {
+  GitDiffFileStat,
+  GitDiffOptions,
+  GitDiffSnapshot,
+  GitDiffStats,
+  GitDiffSummary,
+} from "./types.js";
+export {
+  aggregateGitDiffFileStats,
+  parseGitNumstat,
+  parseGitNumstatFiles,
+} from "./utils.js";

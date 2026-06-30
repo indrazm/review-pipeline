@@ -29,6 +29,17 @@ not to repeatedly catching issues an agent could have found and fixed locally.
 - `Review and Fix`: review, verify, fix supported issues, then verify again.
 - `Full pipeline`: review, verify, fix, prepare a PR, then monitor and repair
   failing PR checks when possible.
+- `Inspect Diff`: preview diff stats and a full stacked code diff for the
+  selected scope, then pick the run mode for that target.
+
+Before an agent run starts, `review-this` shows a Review Target screen with git
+diff stats for each scope and a full-screen stacked patch view for all changed
+files in that scope, with a visible separator for each file. Those files define
+the diff passed through review, verification, fix, and PR preparation. The diff
+viewer includes old/new line number gutters and lightweight syntax highlighting
+for common source file types. Added and removed lines use dark tinted
+backgrounds while preserving syntax colors, and the diff can be scrolled with
+the keyboard or mouse wheel in terminals that support xterm mouse reporting.
 
 Run it from the repository you want reviewed:
 

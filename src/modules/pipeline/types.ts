@@ -9,6 +9,7 @@ import type {
 import type { DiffScopeItem } from "../diff-scope/index.js";
 import type { GitDiffSnapshot } from "../git-diff/index.js";
 import type { MenuItem } from "../main-menu/index.js";
+import type { ReviewTarget } from "../review-target/index.js";
 
 export type PipelineStepId =
   | "git-diff"
@@ -55,8 +56,8 @@ export type PipelineRunResult = {
 
 export type RunPipelineOptions = {
   readonly cwd: string;
-  readonly diffScope: DiffScopeItem;
   readonly mode: MenuItem;
+  readonly reviewTarget: ReviewTarget;
   readonly onGitDiffLoaded: (
     diff: GitDiffSnapshot,
     reviewWillRun: boolean,
@@ -264,6 +265,6 @@ export type PipelineRunState =
     };
 
 export type PipelineRunner = {
-  readonly run: (mode: MenuItem, diffScope: DiffScopeItem) => void;
+  readonly run: (mode: MenuItem, reviewTarget: ReviewTarget) => void;
   readonly state: PipelineRunState;
 };

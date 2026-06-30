@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { logInfo, logWarn } from "../../lib/logger.js";
-import type { DiffScopeItem } from "../diff-scope/index.js";
 import type { MenuItem } from "../main-menu/index.js";
+import type { ReviewTarget } from "../review-target/index.js";
 import { runPipeline } from "./service.js";
 import type { PipelineRunner, PipelineRunState } from "./types.js";
 
@@ -10,7 +10,8 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
   const runIdRef = useRef(0);
 
   const run = useCallback(
-    (mode: MenuItem, diffScope: DiffScopeItem) => {
+    (mode: MenuItem, reviewTarget: ReviewTarget) => {
+      const diffScope = reviewTarget.scope;
       const runId = runIdRef.current + 1;
       const hasInitialVerificationStep =
         mode.id === "review" ||
@@ -24,7 +25,6 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
 
       void runPipeline({
         cwd,
-        diffScope,
         mode,
         onGitDiffLoaded: (diff, reviewWillRun) => {
           if (runIdRef.current !== runId) {
@@ -250,6 +250,7 @@ export function usePipelineRunner(cwd: string): PipelineRunner {
             status: "repairing-pr",
           });
         },
+        reviewTarget,
       })
         .then((result) => {
           if (runIdRef.current !== runId) {

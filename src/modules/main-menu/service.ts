@@ -22,4 +22,14 @@ export const CONNECT_PROVIDER_ITEM = {
   description: "Save and verify an OpenAI-compatible or Anthropic-compatible endpoint.",
 } as const;
 
-export const MENU_ITEMS = [...RUN_MODE_ITEMS, CONNECT_PROVIDER_ITEM] as const;
+export const INSPECT_DIFF_ITEM = {
+  id: "inspect-diff",
+  label: "Inspect Diff",
+  description: "Preview git diff stats and choose files before selecting a run mode.",
+} as const;
+
+export const MENU_ITEMS = [
+  ...RUN_MODE_ITEMS,
+  INSPECT_DIFF_ITEM,
+  CONNECT_PROVIDER_ITEM,
+] as const;

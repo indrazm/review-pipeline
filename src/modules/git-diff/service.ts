@@ -1,8 +1,16 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { DiffScopeItem } from "../diff-scope/index.js";
-import type { GitDiffSnapshot, GitDiffStats } from "./types.js";
-import { parseGitNumstat } from "./utils.js";
+import type {
+  GitDiffOptions,
+  GitDiffSnapshot,
+  GitDiffStats,
+  GitDiffSummary,
+} from "./types.js";
+import {
+  aggregateGitDiffFileStats,
+  parseGitNumstatFiles,
+} from "./utils.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,15 +23,30 @@ type GitDiffTarget = {
 export async function getGitDiffStats(
   cwd: string,
   scope: DiffScopeItem,
+  options: GitDiffOptions = {},
 ): Promise<GitDiffStats> {
+  return (await getGitDiffSummary(cwd, scope, options)).stats;
+}
+
+export async function getGitDiffSummary(
+  cwd: string,
+  scope: DiffScopeItem,
+  options: GitDiffOptions = {},
+): Promise<GitDiffSummary> {
   const target = await getGitDiffTarget(cwd, scope);
+  const paths = normalizeDiffPaths(options.paths);
+
+  if (paths !== undefined && paths.length === 0) {
+    return toGitDiffSummary(cwd, "", await getCommitCount(cwd, target));
+  }
+
   const [trackedNumstat, untrackedNumstat, commitCount] = await Promise.all([
-    runGit(cwd, buildGitDiffArgs(target, "--numstat")),
-    getExtraNumstat(cwd, target),
+    runGit(cwd, buildGitDiffArgs(target, "--numstat", paths)),
+    getExtraNumstat(cwd, target, paths),
     getCommitCount(cwd, target),
   ]);
 
-  return toGitDiffStats(
+  return toGitDiffSummary(
     cwd,
     joinGitOutputs([trackedNumstat.stdout, untrackedNumstat]),
     commitCount,
@@ -33,8 +56,18 @@ export async function getGitDiffStats(
 export async function getGitDiff(
   cwd: string,
   scope: DiffScopeItem,
+  options: GitDiffOptions = {},
 ): Promise<GitDiffSnapshot> {
   const target = await getGitDiffTarget(cwd, scope);
+  const paths = normalizeDiffPaths(options.paths);
+
+  if (paths !== undefined && paths.length === 0) {
+    return {
+      patch: "",
+      stats: toGitDiffSummary(cwd, "", await getCommitCount(cwd, target)).stats,
+    };
+  }
+
   const [
     trackedNumstat,
     trackedPatch,
@@ -42,32 +75,39 @@ export async function getGitDiff(
     untrackedPatch,
     commitCount,
   ] = await Promise.all([
-    runGit(cwd, buildGitDiffArgs(target, "--numstat")),
-    runGit(cwd, buildGitDiffArgs(target)),
-    getExtraNumstat(cwd, target),
-    getExtraPatch(cwd, target),
+    runGit(cwd, buildGitDiffArgs(target, "--numstat", paths)),
+    runGit(cwd, buildGitDiffArgs(target, undefined, paths)),
+    getExtraNumstat(cwd, target, paths),
+    getExtraPatch(cwd, target, paths),
     getCommitCount(cwd, target),
   ]);
 
+  const summary = toGitDiffSummary(
+    cwd,
+    joinGitOutputs([trackedNumstat.stdout, untrackedNumstat]),
+    commitCount,
+  );
+
   return {
     patch: joinGitOutputs([trackedPatch.stdout, untrackedPatch]),
-    stats: toGitDiffStats(
-      cwd,
-      joinGitOutputs([trackedNumstat.stdout, untrackedNumstat]),
-      commitCount,
-    ),
+    stats: summary.stats,
   };
 }
 
-function toGitDiffStats(
+function toGitDiffSummary(
   cwd: string,
   numstat: string,
   commitCount?: number,
-): GitDiffStats {
+): GitDiffSummary {
+  const files = parseGitNumstatFiles(numstat);
+
   return {
-    cwd,
-    ...(commitCount === undefined ? {} : { commitCount }),
-    ...parseGitNumstat(numstat),
+    files,
+    stats: {
+      cwd,
+      ...(commitCount === undefined ? {} : { commitCount }),
+      ...aggregateGitDiffFileStats(files),
+    },
   };
 }
 
@@ -136,23 +176,25 @@ async function hasGitRef(cwd: string, ref: string): Promise<boolean> {
 async function getExtraNumstat(
   cwd: string,
   target: GitDiffTarget,
+  paths: readonly string[] | undefined,
 ): Promise<string> {
   if (target.scope !== "current-changes") {
     return "";
   }
 
-  return getUntrackedNumstat(cwd);
+  return getUntrackedNumstat(cwd, paths);
 }
 
 async function getExtraPatch(
   cwd: string,
   target: GitDiffTarget,
+  paths: readonly string[] | undefined,
 ): Promise<string> {
   if (target.scope !== "current-changes") {
     return "";
   }
 
-  return getUntrackedPatch(cwd);
+  return getUntrackedPatch(cwd, paths);
 }
 
 async function getCommitCount(
@@ -176,34 +218,44 @@ async function getCommitCount(
   return Number.parseInt(stdout.trim(), 10);
 }
 
-async function getUntrackedNumstat(cwd: string): Promise<string> {
-  return getUntrackedDiff(cwd, "--numstat");
+async function getUntrackedNumstat(
+  cwd: string,
+  paths: readonly string[] | undefined,
+): Promise<string> {
+  return getUntrackedDiff(cwd, "--numstat", paths);
 }
 
-async function getUntrackedPatch(cwd: string): Promise<string> {
-  return getUntrackedDiff(cwd);
+async function getUntrackedPatch(
+  cwd: string,
+  paths: readonly string[] | undefined,
+): Promise<string> {
+  return getUntrackedDiff(cwd, undefined, paths);
 }
 
 async function getUntrackedDiff(
   cwd: string,
   format?: "--numstat",
+  paths?: readonly string[] | undefined,
 ): Promise<string> {
-  const paths = await getUntrackedPaths(cwd);
+  const untrackedPaths = await getUntrackedPaths(cwd, paths);
   const outputs = await Promise.all(
-    paths.map((path) => runNoIndexDiff(cwd, path, format)),
+    untrackedPaths.map((path) => runNoIndexDiff(cwd, path, format)),
   );
 
   return joinGitOutputs(outputs);
 }
 
-async function getUntrackedPaths(cwd: string): Promise<string[]> {
+async function getUntrackedPaths(
+  cwd: string,
+  paths: readonly string[] | undefined,
+): Promise<string[]> {
   const { stdout } = await runGit(cwd, [
     "ls-files",
     "--others",
     "--exclude-standard",
     "-z",
     "--",
-    ".",
+    ...toGitPathspecs(paths),
   ]);
 
   return stdout.split("\0").filter((path) => path.length > 0);
@@ -212,36 +264,39 @@ async function getUntrackedPaths(cwd: string): Promise<string[]> {
 function buildGitDiffArgs(
   target: GitDiffTarget,
   format?: "--numstat",
+  paths?: readonly string[] | undefined,
 ): readonly string[] {
+  const pathspecs = toGitPathspecs(paths);
+
   if (target.scope === "branch-against-main") {
     if (target.baseRef === undefined) {
       throw new Error("Branch diff target is missing a base ref");
     }
 
     return format === undefined
-      ? ["diff", `${target.baseRef}...HEAD`, "--", "."]
-      : ["diff", format, `${target.baseRef}...HEAD`, "--", "."];
+      ? ["diff", `${target.baseRef}...HEAD`, "--", ...pathspecs]
+      : ["diff", format, `${target.baseRef}...HEAD`, "--", ...pathspecs];
   }
 
   if (target.scope === "staged-changes") {
     return target.hasHead
       ? format === undefined
-        ? ["diff", "--cached", "HEAD", "--", "."]
-        : ["diff", "--cached", format, "HEAD", "--", "."]
+        ? ["diff", "--cached", "HEAD", "--", ...pathspecs]
+        : ["diff", "--cached", format, "HEAD", "--", ...pathspecs]
       : format === undefined
-        ? ["diff", "--cached", "--", "."]
-        : ["diff", "--cached", format, "--", "."];
+        ? ["diff", "--cached", "--", ...pathspecs]
+        : ["diff", "--cached", format, "--", ...pathspecs];
   }
 
   if (target.hasHead) {
     return format === undefined
-      ? ["diff", "HEAD", "--", "."]
-      : ["diff", format, "HEAD", "--", "."];
+      ? ["diff", "HEAD", "--", ...pathspecs]
+      : ["diff", format, "HEAD", "--", ...pathspecs];
   }
 
   return format === undefined
-    ? ["diff", "--", "."]
-    : ["diff", format, "--", "."];
+    ? ["diff", "--", ...pathspecs]
+    : ["diff", format, "--", ...pathspecs];
 }
 
 async function runGit(cwd: string, args: readonly string[]) {
@@ -291,4 +346,20 @@ function joinGitOutputs(outputs: readonly string[]): string {
     .map((output) => output.trimEnd())
     .filter((output) => output.length > 0)
     .join("\n");
+}
+
+function normalizeDiffPaths(
+  paths: readonly string[] | undefined,
+): readonly string[] | undefined {
+  if (paths === undefined) {
+    return undefined;
+  }
+
+  return [...new Set(paths.map((path) => path.trim()).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b),
+  );
+}
+
+function toGitPathspecs(paths: readonly string[] | undefined): readonly string[] {
+  return paths === undefined ? ["."] : paths;
 }

@@ -2,20 +2,21 @@ import { useEffect } from "react";
 import { Box, Text } from "ink";
 import { BrailleSpinner } from "../../components/braille-spinner.js";
 import { ReviewThisLogo } from "../../components/review-this-logo.js";
-import type { DiffScopeItem } from "../diff-scope/index.js";
 import type { MenuItem } from "../main-menu/index.js";
+import type { ReviewTarget } from "../review-target/index.js";
 import { usePipelineRunner } from "./hooks.js";
 import type { PipelineRunState } from "./types.js";
 import { formatNoChangesMessage } from "./utils.js";
 
 type PipelineScreenProps = {
   readonly cwd: string;
-  readonly diffScope: DiffScopeItem;
   readonly mode: MenuItem;
+  readonly reviewTarget: ReviewTarget;
 };
 
-export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
+export function PipelineScreen({ cwd, mode, reviewTarget }: PipelineScreenProps) {
   const { run, state } = usePipelineRunner(cwd);
+  const diffScope = reviewTarget.scope;
   const showsFixStep = mode.id !== "review";
   const showsInitialVerificationStep =
     mode.id === "review" ||
@@ -26,8 +27,8 @@ export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
   const showsFullPipelineSteps = mode.id === "full-pipeline";
 
   useEffect(() => {
-    run(mode, diffScope);
-  }, [diffScope, mode, run]);
+    run(mode, reviewTarget);
+  }, [mode, reviewTarget, run]);
 
   return (
     <Box flexDirection="column" flexGrow={1} width="100%" paddingX={1} gap={1}>
@@ -43,7 +44,7 @@ export function PipelineScreen({ cwd, diffScope, mode }: PipelineScreenProps) {
           {cwd}
         </Text>
         <Text dimColor wrap="truncate">
-          {diffScope.label}
+          {diffScope.label}, {reviewTarget.selectedPaths.length} files selected
         </Text>
       </Box>
 

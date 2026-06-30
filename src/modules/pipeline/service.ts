@@ -18,6 +18,7 @@ import type {
 import type { DiffScopeItem } from "../diff-scope/index.js";
 import { getGitDiff, type GitDiffSnapshot } from "../git-diff/index.js";
 import type { MenuItem } from "../main-menu/index.js";
+import type { ReviewTarget } from "../review-target/index.js";
 import type {
   PipelineDefinition,
   PipelineRunResult,
@@ -59,7 +60,6 @@ export const PIPELINE_DEFINITIONS: Record<MenuItem["id"], PipelineDefinition> = 
 
 export async function runPipeline({
   cwd,
-  diffScope,
   mode,
   onFixCompleted,
   onFixStarted,
@@ -75,7 +75,9 @@ export async function runPipeline({
   onPrRepairStarted,
   onPrStarted,
   onReviewCompleted,
+  reviewTarget,
 }: RunPipelineOptions): Promise<PipelineRunResult> {
+  const diffScope = reviewTarget.scope;
   const definition = PIPELINE_DEFINITIONS[mode.id];
   const hasFixStep = definition.steps.includes("fix");
   const hasVerificationStep = definition.steps.includes("verification");
@@ -101,7 +103,7 @@ export async function runPipeline({
 
   for (const step of definition.steps) {
     if (step === "git-diff") {
-      gitDiff = await runGitDiffStep(cwd, diffScope, onGitDiffLoaded);
+      gitDiff = await runGitDiffStep(cwd, reviewTarget, onGitDiffLoaded);
     } else if (step === "review") {
       if (gitDiff === undefined) {
         throw new Error("Review step requires git diff context");
@@ -173,7 +175,7 @@ export async function runPipeline({
           throw new Error("Full pipeline fix loop requires initial verification");
         }
 
-        gitDiff = await getGitDiff(cwd, diffScope);
+        gitDiff = await getReviewTargetDiff(cwd, reviewTarget);
         onPostFixVerificationStarted(
           gitDiff,
           agentReview,
@@ -246,7 +248,7 @@ export async function runPipeline({
         continue;
       }
 
-      gitDiff = await getGitDiff(cwd, diffScope);
+      gitDiff = await getReviewTargetDiff(cwd, reviewTarget);
       onPostFixVerificationStarted(gitDiff, agentReview, agentFix, agentInitialVerification, 1, 1);
       agentPostFixVerification = await runVerificationStep(
         cwd,
@@ -388,7 +390,7 @@ export async function runPipeline({
           break;
         }
 
-        gitDiff = await getGitDiff(cwd, diffScope);
+        gitDiff = await getReviewTargetDiff(cwd, reviewTarget);
       }
     } else {
       assertNever(step);
@@ -430,17 +432,26 @@ export async function runPipeline({
 
 async function runGitDiffStep(
   cwd: string,
-  diffScope: DiffScopeItem,
+  reviewTarget: ReviewTarget,
   onGitDiffLoaded: (
     diff: GitDiffSnapshot,
     reviewWillRun: boolean,
   ) => void,
 ): Promise<GitDiffSnapshot> {
-  const diff = await getGitDiff(cwd, diffScope);
+  const diff = await getReviewTargetDiff(cwd, reviewTarget);
 
   onGitDiffLoaded(diff, hasReviewableDiff(diff));
 
   return diff;
+}
+
+async function getReviewTargetDiff(
+  cwd: string,
+  reviewTarget: ReviewTarget,
+): Promise<GitDiffSnapshot> {
+  return getGitDiff(cwd, reviewTarget.scope, {
+    paths: reviewTarget.selectedPaths,
+  });
 }
 
 async function runReviewStep(

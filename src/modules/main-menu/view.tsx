@@ -1,9 +1,9 @@
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import { ReviewThisLogo } from "../../components/review-this-logo.js";
 import type { ProviderConfigStatus } from "../provider/types.js";
 import { useMenuNavigation } from "./hooks.js";
-import { MENU_ITEMS } from "./service.js";
-import type { MainMenuItem } from "./types.js";
+import { CONNECT_PROVIDER_ITEM, MENU_ITEMS, RUN_MODE_ITEMS } from "./service.js";
+import type { MainMenuItem, MenuItem } from "./types.js";
 import { isRunModeItem } from "./utils.js";
 
 type MainMenuProps = {
@@ -28,10 +28,10 @@ export function MainMenu({ onChoose, providerConfigStatus }: MainMenuProps) {
 
       <Box flexDirection="column">
         <Text dimColor wrap="truncate">
-          Pick a run mode, then choose the git diff scope. review-this
+          Pick a run mode, then choose the review target. review-this
         </Text>
         <Text dimColor wrap="truncate">
-          reads that diff and runs the matching local agent pipeline.
+          can also inspect a diff before choosing the agent pipeline.
         </Text>
         <ProviderStatusLine providerConfigStatus={providerConfigStatus} />
       </Box>
@@ -61,6 +61,89 @@ export function MainMenu({ onChoose, providerConfigStatus }: MainMenuProps) {
       </Box>
 
       <Box height={1} />
+    </Box>
+  );
+}
+
+type RunModeMenuProps = {
+  readonly onBack: () => void;
+  readonly onChoose: (item: MenuItem) => void;
+  readonly onConnectProvider: () => void;
+  readonly providerConfigStatus: ProviderConfigStatus;
+  readonly targetLabel: string;
+};
+
+export function RunModeMenu({
+  onBack,
+  onChoose,
+  onConnectProvider,
+  providerConfigStatus,
+  targetLabel,
+}: RunModeMenuProps) {
+  const hasProviderConfig = providerConfigStatus.status === "valid";
+  const itemCount = hasProviderConfig
+    ? RUN_MODE_ITEMS.length
+    : RUN_MODE_ITEMS.length + 1;
+  const { selectedIndex } = useMenuNavigation({
+    isItemDisabled: (index) => index < RUN_MODE_ITEMS.length && !hasProviderConfig,
+    itemCount,
+    onChoose: (index) => {
+      if (index < RUN_MODE_ITEMS.length) {
+        onChoose(RUN_MODE_ITEMS[index]);
+        return;
+      }
+
+      onConnectProvider();
+    },
+  });
+
+  useInput((input) => {
+    if (input === "b") {
+      onBack();
+    }
+  });
+
+  return (
+    <Box flexDirection="column" width={62} gap={1}>
+      <ReviewThisLogo />
+
+      <Box flexDirection="column">
+        <Text bold wrap="truncate">
+          Choose run mode
+        </Text>
+        <Text dimColor wrap="truncate">
+          Target: {targetLabel}
+        </Text>
+        <ProviderStatusLine providerConfigStatus={providerConfigStatus} />
+      </Box>
+
+      <Box flexDirection="column" gap={1}>
+        {Array.from({ length: itemCount }, (_, index) => {
+          const item =
+            index < RUN_MODE_ITEMS.length
+              ? RUN_MODE_ITEMS[index]
+              : CONNECT_PROVIDER_ITEM;
+          const isSelected = selectedIndex === index;
+          const isDisabled = index < RUN_MODE_ITEMS.length && !hasProviderConfig;
+
+          return (
+            <Box key={item.id} flexDirection="column">
+              <Text
+                color={isSelected ? "cyan" : undefined}
+                bold={isSelected}
+                dimColor={isDisabled}
+              >
+                {isSelected ? "> " : "  "}
+                {index + 1}. {item.label}
+              </Text>
+              <Text dimColor wrap="truncate">
+                {"     "}
+                {item.description}
+              </Text>
+            </Box>
+          );
+        })}
+      </Box>
     </Box>
   );
 }
